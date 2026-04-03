@@ -55,7 +55,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
