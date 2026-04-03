@@ -62,7 +62,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: Value: !Sub "${ServiceName}-team-${TeamNumber}-igw"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-igw"
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
