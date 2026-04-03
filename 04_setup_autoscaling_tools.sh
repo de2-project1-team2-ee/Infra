@@ -3,7 +3,7 @@
 
 # 1. 기본 정보 설정 (1번 스택에서 추출)
 
-export AWS_REGION=$(aws configure get region)
+export AWS_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
 if [ ! -z "$AWS_REGION" ]; then
     export CLUSTER_NAME=$(eksctl get cluster --region $AWS_REGION -o json | jq -r '.[0].Name')
 fi
