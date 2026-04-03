@@ -87,11 +87,12 @@ Resources:
   # 3. Public Subnets (가용영역 A, B 대칭 배치)
   # 외부 로드밸런서(ALB)가 배치될 구역
   # =========================================================
+  # Public Subnets (인덱스 8, 9 사용 - App 대역과 겹치지 않는 먼 곳)
   TeamPublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 8, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -104,7 +105,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 9, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -145,11 +146,12 @@ Resources:
   # 5. DB Private Subnets (가용영역 A, B 대칭 배치)
   # 데이터 저장소(RDS 등)가 위치할 보안 최상위 구역
   # =========================================================
+  # DB Subnets (인덱스 10, 11 사용)
   TeamDBSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 2, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 10, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -159,7 +161,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 3, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 11, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       Tags:
         - Key: Name
