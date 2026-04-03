@@ -1,0 +1,36 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: 변수
+  region: ${AWS_REGION}
+  version: "1.34" # 현재 안정적인 최신 버전 중 하나를 추천해! (1.34는 아직 미리보기일 수 있어)
+
+# 중요: 1번 네트워크 스택에서 만든 VPC와 Subnet 정보를 연결해!
+vpc:
+  id: ${MY_VPC_ID}
+  subnets:
+    public:
+      ap-northeast-2a: { id: ${PUB_SUBNET_A} }
+      ap-northeast-2c: { id: ${PUB_SUBNET_B} }
+    private:
+      ap-northeast-2a: { id: ${PRI_SUBNET_A} }
+      ap-northeast-2c: { id: ${PRI_SUBNET_B} }
+
+managedNodeGroups:
+  - name: node-group
+    instanceType: m7i-flex.large # 은비가 가져온 최신 고성능 인스턴스!
+    desiredCapacity: 2          # 데이터 분석을 위해 최소 2개는 권장해 [cite: 2026-01-23]
+    volumeSize: 20
+    privateNetworking: true     # 노드를 Private Subnet에 안전하게 배치
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        albIngress: true        # 로드밸런서(ALB) 컨트롤러 권한 추가
+        cloudWatch: true
+        autoScaler: true
+
+# 클러스터 로그를 CloudWatch로 보내서 분석하기 좋게 설정 [cite: 2026-01-23]
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
