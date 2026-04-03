@@ -9,12 +9,20 @@
 (이후 아래는 필요하다면 변경 CIDR 관련 파라미터들)
 
 # 두번째 파일 (2_~)
-### 역할 : Bastion 서버 만들기
-1. VPC ID 선택
-2. key pair 선택
-3. Service Name 입력
-4. team Number 입력
+### 역할 : Bastion 서버 만들기 ()
+1. Service Name 입력 (1번에서 만들었던 이름과 완전히 같아야함)
+2. team Number 입력 (1번에서 만들었던 이름과 완전히 같아야함)
+3. key pair 선택
+(이후 아래는 필요하다면 변경)
+
+* 자동 설치되는 툴
+- kubectl
+- helm, eksctl
+- aws cli
+
 * 권한 관련 
 1단계 방어: 보안 그룹 (내 IP만 허용)
 2단계 방어: 키페어 (파일 소유자만 접속)
-3단계 방어: IAM 최소 권한 (AdministratorAccess -> 최소 권한 4개로 변경)
+3단계 방어: IAM 최소 권한 
+- AdministratorAccess -> 최소 권한 4개로 변경
+- 파라미터로 넣는 방법은 권장되지 않음
