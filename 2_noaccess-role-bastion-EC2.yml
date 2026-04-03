@@ -1,27 +1,49 @@
-# 이미 만들어진 vpc와 public subnetA에 명령서버 생성
-
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "Management Server (Bastion) for EKS - Reusing existing Network Infra"
+Description: "Management Server (Bastion) for EKS - High Security & Automated Linking"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "1. Project & Team Information (Must match Network Stack)"
+        Parameters:
+          - ServiceName
+          - TeamNumber
+      - Label:
+          default: "2. Instance Configuration"
+        Parameters:
+          - KeyName
+          - MyInstanceType
+          - LatestAmiId
+      - Label:
+          default: "3. Security Settings"
+        Parameters:
+          - SgIngressSshCidr
+    ParameterLabels:
+      ServiceName:
+        default: "Service Name"
+      TeamNumber:
+        default: "Team Number"
+      KeyName:
+        default: "SSH KeyPair Name"
 
 Parameters:
-  # 1. 1번 스택에서 만든 VPC ID를 선택하세요.
-  TargetVpcId:
-    Description: "Select the VPC created by the Network Infra stack"
-    Type: AWS::EC2::VPC::Id
+  ServiceName:
+    Type: String
+    Default: "IamStupid"
+    Description: "Enter the same Service Name used in the Network stack."
+  
+  TeamNumber:
+    Type: Number
+    Default: 1
+    Description: "Enter the same Team Number used in the Network stack."
 
-  # 2. 1번 스택에서 만든 Public Subnet A를 선택하세요. (외부 접속용)
-  TargetSubnetId:
-    Description: "Select TeamPublicSubnetA from the Network Infra stack"
-    Type: AWS::EC2::Subnet::Id
-
-  # 3. 접속에 사용할 EC2 키페어를 선택하세요.
   KeyName:
     Description: "Existing EC2 KeyPair for SSH access"
     Type: AWS::EC2::KeyPair::KeyName
 
-  # 4. 접속을 허용할 IP 범위 (기본값은 전체 허용이나, 내 IP만 넣는 것을 권장)
   SgIngressSshCidr:
-    Description: "CIDR block allowed to SSH into the bastion"
+    Description: "CIDR block allowed for SSH access (Recommended: Your Public IP/32)"
     Type: String
     Default: 0.0.0.0/0
 
@@ -35,20 +57,16 @@ Parameters:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
 
-  ClusterBaseName:
-    Type: String
-    Default: myeks-mgmt
-    Description: "Prefix for resource naming"
-
 Resources:
   # ------------------------------------------------------------
-  # 보안 그룹: 기존 VPC 내부에 생성
+  # 1. Bastion Security Group (1번 VPC 자동 참조)
   # ------------------------------------------------------------
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub "Security Group for ${ClusterBaseName} Bastion"
-      VpcId: !Ref TargetVpcId
+      GroupDescription: !Sub "Security Group for ${ServiceName}-team-${TeamNumber} Bastion"
+      VpcId: 
+        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-VPCID"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
@@ -56,10 +74,10 @@ Resources:
           CidrIp: !Ref SgIngressSshCidr
       Tags:
         - Key: Name
-          Value: !Sub "${ClusterBaseName}-sg"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-bastion-sg"
 
   # ------------------------------------------------------------
-  # IAM 역할: EKS 관리를 위한 권한 부여
+  # 2. IAM Role (관리자 권한 제거 및 최소 권한 적용)
   # ------------------------------------------------------------
   BastionRole:
     Type: AWS::IAM::Role
@@ -72,7 +90,11 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess # 실습용이므로 관리자 권한 부여
+        # AdministratorAccess를 제거하고 필수 권한만 부여합니다.
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
       Path: /
 
   BastionInstanceProfile:
@@ -82,7 +104,7 @@ Resources:
         - !Ref BastionRole
 
   # ------------------------------------------------------------
-  # EC2 인스턴스: 실제 명령 서버
+  # 3. Bastion Instance (1번 Subnet 자동 참조)
   # ------------------------------------------------------------
   BastionInstance:
     Type: AWS::EC2::Instance
@@ -90,18 +112,19 @@ Resources:
       InstanceType: !Ref MyInstanceType
       ImageId: !Ref LatestAmiId
       KeyName: !Ref KeyName
-      SubnetId: !Ref TargetSubnetId
+      SubnetId: 
+        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-PubSubnetA"
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
       IamInstanceProfile: !Ref BastionInstanceProfile
       Tags:
         - Key: Name
-          Value: !Sub "${ClusterBaseName}-bastion"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-bastion"
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # 시스템 기본 설정
-          hostnamectl --static set-hostname "${ClusterBaseName}-bastion"
+          # 시스템 환경 설정
+          hostnamectl --static set-hostname "${ServiceName}-team-${TeamNumber}-bastion"
           echo 'alias vi=vim' >> /etc/profile
           echo 'alias k=kubectl' >> /etc/profile
           ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
@@ -109,14 +132,12 @@ Resources:
           # 필수 도구 설치
           yum -y install tree jq git htop unzip yum-utils
           
-          # kubectl 설치 (1.28 버전 예시)
+          # kubectl 설치 (1.28)
           curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/amd64/kubectl
           install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
           
-          # helm 설치
+          # helm & eksctl 설치
           curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-          
-          # eksctl 설치
           curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
           mv /tmp/eksctl /usr/local/bin
           
