@@ -3,7 +3,7 @@
 
 eksctl create cluster \
   --name team-1-cluster \
-  --region ap-southeast-1 \
+  --region $MY_REGION \
   --vpc-private-subnets subnet-0f7ffeef4233d5f24,subnet-0d61283d185b33658 \
   --node-type t3.medium \
   --nodes 2 \
