@@ -3,7 +3,34 @@ Description: |
   [Data Engineering Project] 
   Multi-AZ (2 AZs) 3-Tier VPC Infrastructure.
   This template provides high availability and scalability for EKS clusters.
-
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "1. Project & Team Infomation"
+        Parameters:
+          - ServiceName
+          - TeamNumber
+      - Label:
+          default: "2. Network Basic Configuration"
+        Parameters:
+          - VPCCidr
+      - Label:
+          default: "3. Advanced Network Sizing"
+        Parameters:
+          - TeamChunkCount
+          - TeamMaskBits
+          - AppSubnetMaskBits
+          - PublicDBSubnetMaskBits
+          - AppSubnetCount
+          - PublicDBSubnetCount
+    ParameterLabels:
+      ServiceName:
+        default: "Service Name (e.g., develop)"
+      TeamNumber:
+        default: "Team Number"
+      VPCCidr:
+        default: "VPC CIDR Block"
 Parameters:
   ServiceName:
     Type: String
