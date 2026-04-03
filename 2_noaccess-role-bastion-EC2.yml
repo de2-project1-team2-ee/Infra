@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "Management Server (Bastion) for EKS - High Security & Automated Linking"
+Description: "Management Server (Bastion) for Container Infra - Automated Linking"
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -24,26 +24,24 @@ Metadata:
         default: "Service Name"
       TeamNumber:
         default: "Team Number"
-      KeyName:
-        default: "SSH KeyPair Name"
 
 Parameters:
   ServiceName:
     Type: String
-    Default: "IamStupid"
-    Description: "Enter the same Service Name used in the Network stack."
+    Default: "container-project"
+    Description: "Must match the ServiceName used in the Network stack."
   
   TeamNumber:
     Type: Number
     Default: 1
-    Description: "Enter the same Team Number used in the Network stack."
+    Description: "Must match the TeamNumber used in the Network stack."
 
   KeyName:
     Description: "Existing EC2 KeyPair for SSH access"
     Type: AWS::EC2::KeyPair::KeyName
 
   SgIngressSshCidr:
-    Description: "CIDR block allowed for SSH access (Recommended: Your Public IP/32)"
+    Description: "CIDR block allowed for SSH access"
     Type: String
     Default: 0.0.0.0/0
 
@@ -58,15 +56,14 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
 
 Resources:
-  # ------------------------------------------------------------
-  # 1. Bastion Security Group (1번 VPC 자동 참조)
-  # ------------------------------------------------------------
+  # 1. Bastion Security Group (Linking with 1st Stack VPC)
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub "Security Group for ${ServiceName}-team-${TeamNumber} Bastion"
       VpcId: 
-        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-VPCID"
+        # [Sync] 1번 스택의 Export Name과 정확히 일치시킴
+        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
@@ -76,9 +73,7 @@ Resources:
         - Key: Name
           Value: !Sub "${ServiceName}-team-${TeamNumber}-bastion-sg"
 
-  # ------------------------------------------------------------
-  # 2. IAM Role (관리자 권한 제거 및 최소 권한 적용)
-  # ------------------------------------------------------------
+  # 2. IAM Role (AdministratorAccess for lab purposes as previously agreed)
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -90,11 +85,8 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # AdministratorAccess를 제거하고 필수 권한만 부여합니다.
-        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
-        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
-        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
-        - arn:aws:iam::aws:policy/IAMFullAccess
+        # 은비의 원활한 실습을 위해 관리자 권한을 유지했어.
+        - arn:aws:iam::aws:policy/AdministratorAccess
       Path: /
 
   BastionInstanceProfile:
@@ -103,9 +95,7 @@ Resources:
       Roles:
         - !Ref BastionRole
 
-  # ------------------------------------------------------------
-  # 3. Bastion Instance (1번 Subnet 자동 참조)
-  # ------------------------------------------------------------
+  # 3. Bastion Instance (Linking with 1st Stack Subnet)
   BastionInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -113,7 +103,8 @@ Resources:
       ImageId: !Ref LatestAmiId
       KeyName: !Ref KeyName
       SubnetId: 
-        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-PubSubnetA"
+        # [Sync] 1번 스택의 Export Name과 정확히 일치시킴
+        Fn::ImportValue: !Sub "${ServiceName}-team-${TeamNumber}-pub-a"
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
       IamInstanceProfile: !Ref BastionInstanceProfile
@@ -123,25 +114,21 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # 시스템 환경 설정
           hostnamectl --static set-hostname "${ServiceName}-team-${TeamNumber}-bastion"
           echo 'alias vi=vim' >> /etc/profile
           echo 'alias k=kubectl' >> /etc/profile
           ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
 
-          # 필수 도구 설치
           yum -y install tree jq git htop unzip yum-utils
           
-          # kubectl 설치 (1.28)
-          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/amd64/kubectl
+          # kubectl v1.31 (Sync with EKS Cluster version)
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.31.0/2024-09-12/bin/linux/amd64/kubectl
           install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
           
-          # helm & eksctl 설치
           curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
           curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
           mv /tmp/eksctl /usr/local/bin
           
-          # AWS CLI v2 설치
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip -q awscliv2.zip
           ./aws/install
