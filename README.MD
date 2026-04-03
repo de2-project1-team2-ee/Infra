@@ -1,6 +1,7 @@
 # [1]. 첫번째 파일 (1_~) 
 ### 역할 : VPC, 서브넷, NAT, IGW, Route Tables 생성
 
+0. cloudformation에서 스택 생성
 1. Service Name 입력
 2. team Number 입력
 
@@ -12,6 +13,7 @@
 ### 역할 : Bastion 서버, 보안 그룹, IAM 역할, 자동 도구 설치 (툴 자동 설치로 시간 좀 걸려요)
 ### 1번파일에서 만든 vpc id와 public subnet A를 자동으로 매칭해서 만들어줌
 
+0. cloudformation에서 스택 생성
 $\color{red}{\text{1. Service Name (1번 파일로 만든 것이랑 동일해야 함)}}$
 
 $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 함)}}$
