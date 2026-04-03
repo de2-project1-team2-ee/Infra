@@ -87,12 +87,13 @@ Resources:
   # 3. Public Subnets (가용영역 A, B 대칭 배치)
   # 외부 로드밸런서(ALB)가 배치될 구역
   # =========================================================
-  # Public Subnets (인덱스 8, 9 사용 - App 대역과 겹치지 않는 먼 곳)
+  # Public Subnet A (팀 대역 내의 특정 지점부터 /26 쪼개기)
   TeamPublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 8, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
+      # 인덱스를 4로 지정하여 App 대역(/24 두 개 = /25 네 개 분량) 뒤로 밀어냄
+      CidrBlock: !Select [ 4, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 8, 6 ] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -105,7 +106,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 9, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 5, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 8, 6 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -122,7 +123,8 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref AppSubnetCount, !Ref AppSubnetMaskBits] ]
+      # 팀 대역(/23)을 2개로 나눈 것 중 0번째(/24) 사용
+      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 2, 8 ] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -134,7 +136,8 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref AppSubnetCount, !Ref AppSubnetMaskBits] ]
+      # 팀 대역(/23)을 2개로 나눈 것 중 1번째(/24) 사용
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 2, 8 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -151,7 +154,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 10, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 6, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 8, 6 ] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -161,7 +164,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref MainVPC
-      CidrBlock: !Select [ 11, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 16, !Ref PublicDBSubnetMaskBits] ]
+      CidrBlock: !Select [ 7, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], 8, 6 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       Tags:
         - Key: Name
