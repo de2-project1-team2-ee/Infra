@@ -5,7 +5,7 @@ metadata:
   # [식별] 서비스명과 팀 번호를 조합한 고유 클러스터 이름
   name: ${SERVICE_NAME}-team-${TEAM_NUMBER}-cluster
   region: ${AWS_REGION}
-  version: "1.31"
+  version: "1.34"
 
 vpc:
   # [기반] 1번 네트워크 스택에서 생성한 VPC ID 연동
