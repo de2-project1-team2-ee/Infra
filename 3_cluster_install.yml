@@ -2,9 +2,10 @@
 # eksctl create cluster -f team1-cluster.yaml --region $MY_REGION
 
 eksctl create cluster \
-  --name team-1-cluster \
+  --name 변수처리 \
   --region $MY_REGION \
-  --vpc-private-subnets subnet-0f7ffeef4233d5f24,subnet-0d61283d185b33658 \
+  --vpc-private-subnets subnet-변수처리 \
   --node-type t3.medium \
   --nodes 2 \
-  --managed
+  --managed \
+  --node-private-networking
