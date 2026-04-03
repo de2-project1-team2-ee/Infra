@@ -11,8 +11,8 @@
 # 두번째 파일 (2_~)
 ### 역할 : Bastion 서버, 보안 그룹, IAM 역할, 자동 도구 설치 (툴 자동 설치로 시간 좀 걸려요)
 ### 1번파일에서 만든 vpc id와 public subnet A를 자동으로 매칭해서 만들어줌
-1. Service Name 입력 (1번에서 만들었던 이름과 완전히 같아야함)
-2. team Number 입력 (1번에서 만들었던 이름과 완전히 같아야함)
+`$\color{red}{\text{1. Service Name 입력 (1번에서 만들었던 이름과 완전히 같아야함)}}$`
+`$\color{red}{\text{2. team Number 입력 (1번에서 만들었던 이름과 완전히 같아야함)}}$`
 3. key pair 선택
 (이후 아래는 필요하다면 변경)
 
