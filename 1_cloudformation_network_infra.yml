@@ -1,0 +1,119 @@
+# 가용영역 다른 곳에 할당하는 거는 아직 안되어 있음
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Multi-team 3-Tier VPC Infrastructure'
+
+Parameters:
+  TeamNumber:
+    Type: Number
+    MinValue: 1
+    MaxValue: 3
+    Default: 1
+
+Resources:
+  # --- [공용 인프라] ---
+  MainVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/20
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: shared-ha-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: shared-igw
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MainVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # --- [팀별 서브넷 생성] ---
+  # Public Subnet (/26)
+  TeamPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀별 /23 시작점 + 내부 0번째 /26 조각
+      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 4, 6 ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-pub"
+
+  # App Private Subnet (/24 - 가장 크게 할당)
+  TeamAppSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀별 /23 시작점 + 내부 1번째 /24 조각 (뒷부분 절반을 통째로 사용)
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 2, 8 ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-app"
+
+  # DB Private Subnet (/26)
+  TeamDBSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀별 /23 시작점 + 내부 1번째 /26 조각
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 4, 6 ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-db"
+
+  # --- [라우팅 설정] ---
+  # Public용 라우팅 (IGW 연결)
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-pub-rt"
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Private용 라우팅 (현재는 내부 통신만 가능하도록 설정)
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-priv-rt"
+
+  # 서브넷 연결
+  PubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TeamPublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  AppAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TeamAppSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
+  DBAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TeamDBSubnet
+      RouteTableId: !Ref PrivateRouteTable
