@@ -6,7 +6,7 @@ Description: 'Multi-team 3-Tier VPC Infrastructure'
 Parameters:
   TeamNumber:
     Type: Number
-    MinValue: 1
+    MinValue: 1 # 최소 
     MaxValue: 3
     Default: 1
 
@@ -34,6 +34,24 @@ Resources:
     Properties:
       VpcId: !Ref MainVPC
       InternetGatewayId: !Ref InternetGateway
+
+  # --- [NAT Gateway 설정 추가] ---
+  # NAT Gateway용 고정 IP
+  NatEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  # Public Subnet에 NAT Gateway 생성
+  MainNatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref TeamPublicSubnet # NAT는 반드시 Public에 있어야 함
+      Tags:
+        - Key: Name
+          Value: !Sub "team-${TeamNumber}-nat"
 
   # --- [팀별 서브넷 생성] ---
   # Public Subnet (/26)
@@ -98,6 +116,13 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "team-${TeamNumber}-priv-rt"
+  # [추가] Private Subnet에서 외부로 나가는 길 (NAT Gateway 연결)
+  PrivateNatRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref MainNatGateway
 
   # 서브넷 연결
   PubAssoc:
