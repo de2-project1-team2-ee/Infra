@@ -57,20 +57,31 @@ Resources:
   # 2. NAT Gateway (Public 영역에 위치하여 Private 통신 지원)
   # 비용 최적화를 위해 NAT는 AZ-a에 1개만 생성 (운영 환경은 AZ별 생성이 정석)
   # =========================================================
-  NatEIP:
+  # AZ-a용 NAT 및 IP
+  NatEIPA:
     Type: AWS::EC2::EIP
     DependsOn: AttachGateway
-    Properties:
-      Domain: vpc
+    Properties: { Domain: vpc }
 
-  MainNatGateway:
+  NatGatewayA:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt NatEIP.AllocationId
+      AllocationId: !GetAtt NatEIPA.AllocationId
       SubnetId: !Ref TeamPublicSubnetA
-      Tags:
-        - Key: Name
-          Value: !Sub "team-${TeamNumber}-nat"
+      Tags: [{ Key: Name, Value: !Sub "team-${TeamNumber}-nat-a" }]
+  
+  # AZ-b용 NAT 및 IP
+  NatEIPB:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties: { Domain: vpc }
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPB.AllocationId
+      SubnetId: !Ref TeamPublicSubnetB
+      Tags: [{ Key: Name, Value: !Sub "team-${TeamNumber}-nat-b" }]
 
   # =========================================================
   # 3. Public Subnets (가용영역 A, B 대칭 배치)
@@ -157,6 +168,7 @@ Resources:
   # =========================================================
   # 6. 라우팅 및 연결 설정
   # =========================================================
+  # Public은 IGW 하나를 공유하므로 기존과 동일
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -170,23 +182,45 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  PrivateRouteTable:
+  # --- [Private A용 라우팅: NAT-A 사용] ---
+  PrivateRouteTableA:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref MainVPC
-      Tags: [{ Key: Name, Value: !Sub "team-${TeamNumber}-priv-rt" }]
+      Tags: [{ Key: Name, Value: !Sub "team-${TeamNumber}-priv-rt-a" }]
 
-  PrivateNatRoute:
+  PrivateNatRouteA:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTableA
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref MainNatGateway
+      NatGatewayId: !Ref NatGatewayA
 
-  # 각 서브넷을 해당 라우팅 테이블에 연결
+  # --- [Private B용 라우팅: NAT-B 사용] ---
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "team-${TeamNumber}-priv-rt-b" }]
+
+  PrivateNatRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  # =========================================================
+  # 7. 서브넷-라우팅 테이블 연결 (대칭 연결)
+  # =========================================================
+  # Public 연결
   PubAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetA, RouteTableId: !Ref PublicRouteTable } }
   PubAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetB, RouteTableId: !Ref PublicRouteTable } }
-  AppAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetA, RouteTableId: !Ref PrivateRouteTable } }
-  AppAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetB, RouteTableId: !Ref PrivateRouteTable } }
-  DBAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetA, RouteTableId: !Ref PrivateRouteTable } }
-  DBAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetB, RouteTableId: !Ref PrivateRouteTable } }
+
+  # Private A 계층 연결 (App-a, DB-a) -> NAT-A 경로 사용
+  AppAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetA, RouteTableId: !Ref PrivateRouteTableA } }
+  DBAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetA, RouteTableId: !Ref PrivateRouteTableA } }
+
+  # Private B 계층 연결 (App-b, DB-b) -> NAT-B 경로 사용
+  AppAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetB, RouteTableId: !Ref PrivateRouteTableB } }
+  DBAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetB, RouteTableId: !Ref PrivateRouteTableB } }
