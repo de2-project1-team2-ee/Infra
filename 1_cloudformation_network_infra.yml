@@ -269,7 +269,7 @@ Outputs:
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-AppSubnetB"
 
-ExportServiceName:
+  ExportServiceName:
     Description: "The Name of this Service"
     Value: !Ref ServiceName
     Export:
