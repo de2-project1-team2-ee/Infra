@@ -38,7 +38,7 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 ### 역할 : 각종 환경변수 저장 및 클러스터 생성
 0. vi 3_create_eks.sh
 1. 내용 복붙 + esc + :wq (저장)
-1. chmod +x 3_create-eks.sh 입력 후 권한 생성
+1. chmod +x 3_create_eks.sh 입력 후 권한 생성
 2. ./create-eks.sh 실행
 
 * 참고 : 1번 스택이름을 자동화하려면 수정 필요. 일단은 nat-stack으로 생성하는 것으로 가정하고 진행 
