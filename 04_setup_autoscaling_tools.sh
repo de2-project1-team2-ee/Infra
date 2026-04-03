@@ -1,1 +1,1 @@
-# Helm을 이용한 Karpenter 설치
+# Helm을 이용한 Metrics Server + Karpenter 설치
