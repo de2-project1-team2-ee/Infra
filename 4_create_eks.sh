@@ -3,7 +3,7 @@
 # --------------------------------------------------------
 # 0. 사용자 설정 (이 스택 이름만 정확하면 끝!) [cite: 2026-02-14]
 # --------------------------------------------------------
-export NET_STACK_NAME="${SERVICE_NAME}-team-${TEAM_NUMBER}-network"
+export NET_STACK_NAME="nat_stack"
 
 echo "--------------------------------------------------------"
 echo "🔍 Fetching Infrastructure Data from: $NET_STACK_NAME"
@@ -40,6 +40,43 @@ fi
 echo "✅ Target: $SERVICE_NAME Team $TEAM_NUMBER"
 echo "✅ VPC ID: $MY_VPC_ID"
 echo "✅ Subnets Loaded: Pub($PUB_SUBNET_A, $PUB_SUBNET_B), App($APP_PRI_SUBNET_A, $APP_PRI_SUBNET_B)"
+# cluster 생성
+cat << EOF > cluster.yaml
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${SERVICE_NAME}-team-${TEAM_NUMBER}-cluster
+  region: ${AWS_REGION}
+  version: "1.34"
+
+vpc:
+  id: ${MY_VPC_ID}
+  subnets:
+    public:
+      - id: ${PUB_SUBNET_A}
+      - id: ${PUB_SUBNET_B}
+    private:
+      - id: ${APP_PRI_SUBNET_A}
+      - id: ${APP_PRI_SUBNET_B}
+
+managedNodeGroups:
+  - name: m7i-flex-large-nodes
+    instanceType: m7i-flex.large
+    desiredCapacity: 2
+    volumeSize: 20
+    privateNetworking: true
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        albIngress: true
+        cloudWatch: true
+        autoScaler: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
+EOF
 
 # --------------------------------------------------------
 # 2. YAML 변수 치환 및 EKS 생성
