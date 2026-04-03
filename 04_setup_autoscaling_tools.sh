@@ -10,8 +10,7 @@ echo "🚀 Starting Full Setup (IAM + Karpenter)"
 echo "📍 Cluster: $CLUSTER_NAME / Region: $AWS_REGION"
 echo "--------------------------------------------------------"
 
-# 2. [핵심] Karpenter용 IAM Role 및 ServiceAccount 생성 [cite: 2026-04-04]
-# 이 명령어가 은비가 없다고 했던 그 '면허증'을 만들어주는 거야. [cite: 2026-01-23]
+# 2.  Karpenter용 IAM Role 및 ServiceAccount 생성 [cite: 2026-04-04]
 echo "🔑 Creating IAM Service Account and Role..."
 eksctl create iamserviceaccount \
   --cluster="${CLUSTER_NAME}" --region="${AWS_REGION}" \
