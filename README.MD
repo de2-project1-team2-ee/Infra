@@ -11,4 +11,10 @@
 # 두번째 파일 (2_~)
 ### 역할 : Bastion 서버 만들기
 1. VPC ID 선택
-2. 
+2. key pair 선택
+3. Service Name 입력
+4. team Number 입력
+* 권한 관련 
+1단계 방어: 보안 그룹 (내 IP만 허용)
+2단계 방어: 키페어 (파일 소유자만 접속)
+3단계 방어: IAM 최소 권한 (AdministratorAccess -> 최소 권한 4개로 변경)
