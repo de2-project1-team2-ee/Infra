@@ -1,0 +1,37 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  # 클러스터 이름: 서비스-팀-cluster
+  name: ${SERVICE_NAME}-team-${TEAM_NUMBER}-cluster
+  region: ${AWS_REGION}
+  version: "1.34"
+
+vpc:
+  id: ${MY_VPC_ID}
+  subnets:
+    public:
+      # 리전 독립성을 위해 AZ 이름 대신 ID 리스트 사용 [cite: 2026-02-14]
+      - id: ${PUB_SUBNET_A}
+      - id: ${PUB_SUBNET_B}
+    private:
+      # 1번 스택의 App 전용 서브넷만 정확히 매핑
+      - id: ${APP_PRI_SUBNET_A}
+      - id: ${APP_PRI_SUBNET_B}
+
+managedNodeGroups:
+  - name: m7i-flex-large-nodes # 성능 중심의 노드 그룹 명명 [cite: 2026-04-03]
+    instanceType: m7i-flex.large
+    desiredCapacity: 2
+    volumeSize: 20
+    privateNetworking: true # App Private Subnet에 안전하게 배치
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        albIngress: true # 로드밸런서 컨트롤러 권한
+        cloudWatch: true
+        autoScaler: true
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
