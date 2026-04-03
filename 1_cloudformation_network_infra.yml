@@ -9,13 +9,48 @@ Parameters:
     MinValue: 1 # 최소 
     MaxValue: 3
     Default: 1
+  # [추가] VPC 전체 대역폭 변수화
+  VPCCidr:
+    Type: String
+    Default: "10.0.0.0/20"
+    Description: "CIDR block for the entire VPC"
+
+  # [추가] 계산용 변수들
+  TeamChunkCount:
+    Type: Number
+    Default: 8
+    Description: "전체 VPC를 몇 개의 팀 구역으로 나눌 것인가 (2^3=8)"
+  TeamMaskBits:
+    Type: Number
+    Default: 9
+    Description: "팀당 할당될 마스크 비트 (32-9=23, 즉 팀당 /23 대역)"
+  
+  AppSubnetMaskBits:
+    Type: Number
+    Default: 8
+    Description: "App 서브넷 크기 (32-8=24, 즉 /24 대역)"
+  PublicDBSubnetMaskBits:
+    Type: Number
+    Default: 6
+    Description: "Public/DB 서브넷 크기 (32-6=26, 즉 /26 대역)"
+
+  # [추가] 서브넷 조각(Slot) 개수 변수화
+  PublicDBSubnetCount:
+    Type: Number
+    Default: 4
+    Description: "Public/DB 구역을 몇 개의 조각으로 나눌 것인가"
+    
+  AppSubnetCount:
+    Type: Number
+    Default: 2
+    Description: "App 구역을 몇 개의 조각으로 나눌 것인가"
 
 Resources:
   # --- [공용 인프라] ---
   MainVPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: 10.0.0.0/20
+      CidrBlock: !Ref VPCCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
@@ -60,7 +95,7 @@ Resources:
     Properties:
       VpcId: !Ref MainVPC
       # 팀별 /23 시작점 + 내부 0번째 /26 조각
-      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 4, 6 ] ]
+      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -73,7 +108,7 @@ Resources:
     Properties:
       VpcId: !Ref MainVPC
       # 팀별 /23 시작점 + 내부 1번째 /24 조각 (뒷부분 절반을 통째로 사용)
-      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 2, 8 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref AppSubnetCount, !Ref AppSubnetMaskBits] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -85,7 +120,7 @@ Resources:
     Properties:
       VpcId: !Ref MainVPC
       # 팀별 /23 시작점 + 내부 1번째 /26 조각
-      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ "10.0.0.0/20", 8, 9 ] ], 4, 6 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
