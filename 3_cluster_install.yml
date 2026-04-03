@@ -1,0 +1,10 @@
+# export MY_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
+# eksctl create cluster -f team1-cluster.yaml --region $MY_REGION
+
+eksctl create cluster \
+  --name team-1-cluster \
+  --region ap-southeast-1 \
+  --vpc-private-subnets subnet-0f7ffeef4233d5f24,subnet-0d61283d185b33658 \
+  --node-type t3.medium \
+  --nodes 2 \
+  --managed
