@@ -55,14 +55,14 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: vpc-2e
+          Value: Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: shared-igw
+          Value: Value: !Sub "${ServiceName}-team-${TeamNumber}-igw"
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
