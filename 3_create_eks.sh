@@ -47,11 +47,16 @@ vpc:
   id: ${MY_VPC_ID}
   subnets:
     public:
-      - id: ${PUB_SUBNET_A}
-      - id: ${PUB_SUBNET_B}
+      # 리전 변수 뒤에 a, b만 붙여서 동적으로 처리해 [cite: 2026-04-04]
+      ${AWS_REGION}a:
+        id: ${PUB_SUBNET_A}
+      ${AWS_REGION}b:
+        id: ${PUB_SUBNET_B}
     private:
-      - id: ${APP_PRI_SUBNET_A}
-      - id: ${APP_PRI_SUBNET_B}
+      ${AWS_REGION}a:
+        id: ${APP_PRI_SUBNET_A}
+      ${AWS_REGION}b:
+        id: ${APP_PRI_SUBNET_B}
 
 managedNodeGroups:
   - name: m7i-flex-large-nodes
