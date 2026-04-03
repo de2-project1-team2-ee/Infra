@@ -31,3 +31,4 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
   - AdministratorAccess -> 최소 권한 4개로 변경
   - 파라미터로 넣는 방법은 권장되지 않음
+# [3]. 세번째 파일 (3_~)
