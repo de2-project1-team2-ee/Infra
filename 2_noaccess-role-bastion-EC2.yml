@@ -1,0 +1,131 @@
+# 이미 만들어진 vpc와 public subnetA에 명령서버 생성
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Management Server (Bastion) for EKS - Reusing existing Network Infra"
+
+Parameters:
+  # 1. 1번 스택에서 만든 VPC ID를 선택하세요.
+  TargetVpcId:
+    Description: "Select the VPC created by the Network Infra stack"
+    Type: AWS::EC2::VPC::Id
+
+  # 2. 1번 스택에서 만든 Public Subnet A를 선택하세요. (외부 접속용)
+  TargetSubnetId:
+    Description: "Select TeamPublicSubnetA from the Network Infra stack"
+    Type: AWS::EC2::Subnet::Id
+
+  # 3. 접속에 사용할 EC2 키페어를 선택하세요.
+  KeyName:
+    Description: "Existing EC2 KeyPair for SSH access"
+    Type: AWS::EC2::KeyPair::KeyName
+
+  # 4. 접속을 허용할 IP 범위 (기본값은 전체 허용이나, 내 IP만 넣는 것을 권장)
+  SgIngressSshCidr:
+    Description: "CIDR block allowed to SSH into the bastion"
+    Type: String
+    Default: 0.0.0.0/0
+
+  MyInstanceType:
+    Description: "EC2 instance type"
+    Type: String
+    Default: t3.small
+
+  LatestAmiId:
+    Description: "Amazon Linux 2 AMI"
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+  ClusterBaseName:
+    Type: String
+    Default: myeks-mgmt
+    Description: "Prefix for resource naming"
+
+Resources:
+  # ------------------------------------------------------------
+  # 보안 그룹: 기존 VPC 내부에 생성
+  # ------------------------------------------------------------
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "Security Group for ${ClusterBaseName} Bastion"
+      VpcId: !Ref TargetVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SgIngressSshCidr
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterBaseName}-sg"
+
+  # ------------------------------------------------------------
+  # IAM 역할: EKS 관리를 위한 권한 부여
+  # ------------------------------------------------------------
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess # 실습용이므로 관리자 권한 부여
+      Path: /
+
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
+
+  # ------------------------------------------------------------
+  # EC2 인스턴스: 실제 명령 서버
+  # ------------------------------------------------------------
+  BastionInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref MyInstanceType
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      SubnetId: !Ref TargetSubnetId
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterBaseName}-bastion"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # 시스템 기본 설정
+          hostnamectl --static set-hostname "${ClusterBaseName}-bastion"
+          echo 'alias vi=vim' >> /etc/profile
+          echo 'alias k=kubectl' >> /etc/profile
+          ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+
+          # 필수 도구 설치
+          yum -y install tree jq git htop unzip yum-utils
+          
+          # kubectl 설치 (1.28 버전 예시)
+          curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.28.3/2023-11-14/bin/linux/amd64/kubectl
+          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          
+          # helm 설치
+          curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+          
+          # eksctl 설치
+          curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+          mv /tmp/eksctl /usr/local/bin
+          
+          # AWS CLI v2 설치
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          ./aws/install
+
+Outputs:
+  BastionPublicIP:
+    Description: "Public IP of the Bastion Server"
+    Value: !GetAtt BastionInstance.PublicIp
