@@ -47,9 +47,8 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
 
 
-
-
-
-
 # [개발중]
-
+0. vi 4_setup_autoscaling_tools.sh
+1. 내용 복붙 + esc + :wq (저장)
+2. chmod +x 4_setup_autoscaling_tools.sh 입력 후 권한 생성
+3. ./4_setup_autoscaling_tools.sh 실행
