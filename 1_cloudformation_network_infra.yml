@@ -268,3 +268,14 @@ Outputs:
     Value: !Ref TeamAppSubnetB
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-AppSubnetB"
+
+ExportServiceName:
+    Description: "The Name of this Service"
+    Value: !Ref ServiceName
+    Export:
+      Name: !Sub "${ServiceName}-ServiceName" 
+  ExportTeamNumber:
+    Description: "The Team Number"
+    Value: !Ref TeamNumber
+    Export:
+      Name: !Sub "${ServiceName}-TeamNumber"
