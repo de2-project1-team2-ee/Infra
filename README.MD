@@ -1,3 +1,4 @@
+https://app.diagrams.net/#Hsilver-ring-data%2FBootcamp_Study%2Fmain%2FK8S%2Finfra.drawio#%7B%22pageId%22%3A%22Mu30gTYnqA34-WPC4D4Z%22%7D
 # [1]. 첫번째 파일 (1_~) 
 ### 역할 : VPC, 서브넷, NAT, IGW, Route Tables 생성
 
