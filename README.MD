@@ -2,7 +2,7 @@
 ### 역할 : VPC, 서브넷, NAT, IGW, Route Tables 생성
 
 0. cloudformation에서 스택 생성
-  $\color{red}{\text{- 이름 생성시 형식 : {서비스이름}-team-{팀번호}-network ex. develop-team-1-network}}$
+  $\color{red}{\text{- 이름 생성시 형식 : nat_stack}}$
 1. Service Name 입력
 2. team Number 입력
 
