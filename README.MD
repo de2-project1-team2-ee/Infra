@@ -1,5 +1,5 @@
 # 첫번째 파일 (1_~) 
-### 역할 : VPC, 서브넷, NAT 생성
+### 역할 : VPC, 서브넷, NAT, IGW, Route Tables 생성
 
 1. Service Name 입력
 2. team Number 입력
