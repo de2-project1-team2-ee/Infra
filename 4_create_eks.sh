@@ -3,7 +3,7 @@
 # --------------------------------------------------------
 # 0. 임시 설정 (이름을 nat_stack으로 고정!) [cite: 2026-02-14]
 # --------------------------------------------------------
-export NET_STACK_NAME="nat_stack"
+export NET_STACK_NAME="nat-stack"
 
 echo "--------------------------------------------------------"
 echo "🔍 Fetching Infrastructure Data from: $NET_STACK_NAME"
