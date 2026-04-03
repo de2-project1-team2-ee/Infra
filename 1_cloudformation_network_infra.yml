@@ -252,30 +252,39 @@ Resources:
 
   # 변수 값 할당
 Outputs:
+  # 1. VPC ID
   ExportVpcId:
     Value: !Ref MainVPC
     Export:
-      Name: !Sub "${ServiceName}-team-${TeamNumber}-VPCID"
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-vpc" # 명칭 통일
+
+  # 2. Public Subnets (이름 형식: 서비스-team-번호-pub-a)
   ExportPublicSubnetA:
     Value: !Ref TeamPublicSubnetA
     Export:
-      Name: !Sub "${ServiceName}-team-${TeamNumber}-PubSubnetA"
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-pub-a"
+  ExportPublicSubnetB:
+    Value: !Ref TeamPublicSubnetB
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-pub-b"
+
+  # 3. App Private Subnets (이름 형식: 서비스-team-번호-app-a)
   ExportAppSubnetA:
     Value: !Ref TeamAppSubnetA
     Export:
-      Name: !Sub "${ServiceName}-team-${TeamNumber}-AppSubnetA"
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
   ExportAppSubnetB:
     Value: !Ref TeamAppSubnetB
     Export:
-      Name: !Sub "${ServiceName}-team-${TeamNumber}-AppSubnetB"
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
 
+  # 4. 서비스 정보 (순수 값만 추출하기 위한 통로) [cite: 2026-02-14]
   ExportServiceName:
-    Description: "The Name of this Service"
     Value: !Ref ServiceName
     Export:
-      Name: !Sub "${ServiceName}-ServiceName" 
+      Name: !Sub "${ServiceName}-service-name" 
+
   ExportTeamNumber:
-    Description: "The Team Number"
     Value: !Ref TeamNumber
     Export:
-      Name: !Sub "${ServiceName}-TeamNumber"
+      Name: !Sub "${ServiceName}-team-number"
