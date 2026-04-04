@@ -57,6 +57,8 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 4. ***리전 지역 직접 입력***
 
 * 참고 : 해당 클러스터의 index 0인 노드그룹에게만 권한 할당 혹시 모든 노드 그룹에게 할당하려면 아래로 바꾸어야 함 -> 이건 테스트를 아직 안해봐서 수정은 안할게요
+```bash
+#!/bin/bash
 <변경전>
 AUTO_NODEGROUP_NAME=$(aws eks list-nodegroups ... query "nodegroups[0]")
 <변경후>
@@ -69,4 +71,6 @@ for NG in $NODEGROUP_LIST; do
     echo "🔑 Injecting policy to: $NG ($ROLE_NAME)"
     aws iam put-role-policy --role-name ${ROLE_NAME} --policy-name KarpenterControllerPolicy --policy-document '{...}' 
 done
+```
+
 보안 그룹 4443 포트 개방
