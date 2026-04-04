@@ -176,6 +176,8 @@ Resources:
           Value: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
         - Key: "kubernetes.io/role/internal-elb"
           Value: "1"
+        - Key: "karpenter.sh/discovery"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
 
   TeamAppSubnetB:
     Type: AWS::EC2::Subnet
@@ -189,6 +191,8 @@ Resources:
           Value: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
         - Key: "kubernetes.io/role/internal-elb"
           Value: "1"
+        - Key: "karpenter.sh/discovery"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
 
   # =========================================================
   # 5. DB Private Subnets (가용영역 A, B 대칭 배치)
