@@ -56,5 +56,17 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 3. ./04_setup_autoscaling_tools.sh 실행
 4. ***리전 지역 직접 입력***
 
-* 참고 : 해당 클러스터의 index 0인 노드그룹에게만 권한 할당 -> 이거 나중에 프로젝트 규모가 커지면 조금 고려해야하는 부분이나, 현재로선 크게 문제는 없을듯
+* 참고 : 해당 클러스터의 index 0인 노드그룹에게만 권한 할당 혹시 모든 노드 그룹에게 할당하려면 아래로 바꾸어야 함 -> 이건 테스트를 아직 안해봐서 수정은 안할게요
+<변경전>
+AUTO_NODEGROUP_NAME=$(aws eks list-nodegroups ... query "nodegroups[0]")
+<변경후>
+NODEGROUP_LIST=$(aws eks list-nodegroups --cluster-name ${CLUSTER_NAME} --region ${AWS_REGION} --query "nodegroups" --output text)
+
+for NG in $NODEGROUP_LIST; do
+    ROLE_ARN=$(aws eks describe-nodegroup --cluster-name ${CLUSTER_NAME} --nodegroup-name $NG --region ${AWS_REGION} --query "nodegroup.nodeRole" --output text)
+    ROLE_NAME=$(echo $ROLE_ARN | cut -d'/' -f2)
+    
+    echo "🔑 Injecting policy to: $NG ($ROLE_NAME)"
+    aws iam put-role-policy --role-name ${ROLE_NAME} --policy-name KarpenterControllerPolicy --policy-document '{...}' 
+done
 보안 그룹 4443 포트 개방
