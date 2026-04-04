@@ -72,6 +72,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${ServiceName}-team-${TeamNumber}-bastion-sg"
+        - Key: "karpenter.sh/discovery"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
 
   # 2. IAM Role (AdministratorAccess for lab purposes as previously agreed)
   BastionRole:
