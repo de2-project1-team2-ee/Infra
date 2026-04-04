@@ -72,5 +72,31 @@ for NG in $NODEGROUP_LIST; do
     aws iam put-role-policy --role-name ${ROLE_NAME} --policy-name KarpenterControllerPolicy --policy-document '{...}' 
 done
 ```
-
 보안 그룹 4443 포트 개방
+
+# [5]. 다섯번째 파일
+### 역할 : 네임스페이스 생성
+
+(0. env_config 생성) 했다고 가정
+1. 06_create_namespaces.sh 내용 복붙
+2. 실행
+3. 확인
+```bash
+#!/bin/bash
+[ec2-user@develop-team-1-bastion ~]$ kubectl get ns --show-labels
+NAME              STATUS   AGE    LABELS
+default           Active   3h2m   kubernetes.io/metadata.name=default
+dev               Active   53s    env=dev,karpenter.sh/discovery=develop-team-1-cluster,kubernetes.io/metadata.name=dev,service=develop,team=team-1
+karpenter         Active   152m   kubernetes.io/metadata.name=karpenter,name=karpenter
+kube-node-lease   Active   3h2m   kubernetes.io/metadata.name=kube-node-lease
+kube-public       Active   3h2m   kubernetes.io/metadata.name=kube-public
+kube-system       Active   3h2m   kubernetes.io/metadata.name=kube-system
+monitoring        Active   53s    env=infra,kubernetes.io/metadata.name=monitoring,service=kubernetes-infra,team=admin
+prod              Active   53s    env=prod,kubernetes.io/metadata.name=prod,service=develop,team=team-1
+stg               Active   53s    env=stg,kubernetes.io/metadata.name=stg,service=develop,team=team-1
+done
+```
+* 참고 : 구성은 dev(개발용), prod(테스트용), stg(서비스) + monitoring(모니터링) 
+  - 모니터링에 대하여
+    - (Prometheus(데이터 수집), Grafana(그래프 시각화), Kubecost(비용 분석)을 넣어서 모니터링용만
+    - 목적 : 서비스 방(dev, prod)과 섞이지 않게 관리해야 인프라가 훨씬 깔끔하다고 합니다.
