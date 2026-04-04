@@ -1,0 +1,41 @@
+#!/bin/bash
+source ./env_config.sh
+
+echo "⚠️ [경고] 모든 AWS 리소스(EKS, RDS, VPC)를 삭제합니다. 이 작업은 되돌릴 수 없습니다."
+sleep 5
+
+# 1. Kubernetes 리소스 삭제 (ALB 및 Ingress 정리) [cite: 2026-04-05]
+echo "--------------------------------------------------------"
+echo "🗑️ [Step 1] K8s Resources & ALB"
+echo "--------------------------------------------------------"
+kubectl delete ingress --all -A 2>/dev/null
+kubectl delete svc --all -A 2>/dev/null
+# ALB가 실제로 AWS 콘솔에서 사라질 때까지 대기 (약 2~3분 소요) [cite: 2026-01-23]
+echo "⏳ Waiting for AWS Load Balancer to be terminated..."
+sleep 60 
+
+# 2. RDS 인스턴스 삭제 [cite: 2026-04-05]
+echo "--------------------------------------------------------"
+echo "🗑️ [Step 2] RDS Instance"
+echo "--------------------------------------------------------"
+aws rds delete-db-instance \
+    --db-instance-identifier ${SERVICE_NAME}-db \
+    --skip-final-snapshot \
+    --delete-automated-backups
+
+# 3. EKS 클러스터 삭제 (노드 그룹, IAM Role, VPC 연동 해제) [cite: 2026-04-05]
+echo "--------------------------------------------------------"
+echo "🗑️ [Step 3] EKS Cluster (This will take 15-20 mins)"
+echo "--------------------------------------------------------"
+eksctl delete cluster --name $CLUSTER_NAME --wait
+
+# 4. 남은 보안 그룹 및 VPC 관련 잔여물 정리 (필요 시) [cite: 2026-04-05]
+echo "--------------------------------------------------------"
+echo "🗑️ [Step 4] Final Cleanup (Security Groups, Subnet Groups)"
+echo "--------------------------------------------------------"
+# RDS 서브넷 그룹 삭제 [cite: 2026-04-05]
+aws rds delete-db-subnet-group --db-subnet-group-name ${SERVICE_NAME}-rds-sng 2>/dev/null
+# RDS 보안 그룹 삭제 [cite: 2026-04-05]
+aws ec2 delete-security-group --group-name ${SERVICE_NAME}-rds-sg 2>/dev/null
+
+echo "✨ 모든 리소스 삭제 요청이 완료되었습니다. 콘솔에서 최종 확인을 권장합니다!"
