@@ -47,8 +47,11 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
 
 
-# [개발중]
-0. vi 04_setup_autoscaling_tools.sh
-1. 내용 복붙 + esc + :wq (저장)
-2. chmod +x 04_setup_autoscaling_tools.sh 입력 후 권한 생성
+# [4]. 네번째 파일 + env_config.txt
+### 역할 : 카펜터, 매트릭서버 설치
+
+0. env_config 생성
+1. source env_config.sh로 실행하여 써야하는 변수 저장
+2. 04_setup_autoscaling_tools.txt 내용 복붙
 3. ./04_setup_autoscaling_tools.sh 실행
+4. ***리전 지역 직접 입력***
