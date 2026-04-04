@@ -308,6 +308,16 @@ Outputs:
     Value: !Ref TeamAppSubnetB
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
+  
+  # --- [추가된 부분: RDS 스크립트 연동용] --- [cite: 2026-04-04]
+  ExportDBSubnetA:
+    Value: !Ref TeamDBSubnetA
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-db-a"
+  ExportDBSubnetB:
+    Value: !Ref TeamDBSubnetB
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-db-b"
 
   # 4. 서비스 정보 (순수 값만 추출하기 위한 통로) [cite: 2026-02-14]
   ExportServiceName:
