@@ -1,20 +1,43 @@
+cat << 'EOF' > 04_setup_autoscaling_tools.sh
 #!/bin/bash
 
-# 1. 환경 변수 자동 추출 (보내준 파일 2단계 로직) [cite: 2026-02-25-1]
-export AWS_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
-export CLUSTER_NAME=$(eksctl get cluster --region $AWS_REGION -o json | jq -r '.[0].Name')
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
-export CLUSTER_ENDPOINT=$(aws eks describe-cluster --name ${CLUSTER_NAME} --query "cluster.endpoint" --output text)
+# 1. 공통 환경 변수 로드 (여기서 리전 물어봄)
+source ./env_config.sh
+
+# 클러스터 엔드포인트 정보 추출
+export CLUSTER_ENDPOINT=$(aws eks describe-cluster --name ${CLUSTER_NAME} --region ${AWS_REGION} --query "cluster.endpoint" --output text)
 
 echo "--------------------------------------------------------"
-echo "🌐 Cluster: $CLUSTER_NAME | Endpoint: $CLUSTER_ENDPOINT"
+echo "🌐 Cluster: $CLUSTER_NAME"
+echo "📍 Region: $AWS_REGION"
 echo "--------------------------------------------------------"
 
-# 2. [핵심] 기존 노드 그룹 역할에 Karpenter 권한 직접 주입 (3단계 로직) [cite: 2026-02-25-1]
-# IRSA 대신 이 방식을 쓰면 'unrecognized name' 에러를 피하기 쉬워. [cite: 2026-02-25-1]
-NODE_ROLE_NAME=$(aws iam list-roles --query "Roles[?contains(RoleName, 'nodegroup') && contains(RoleName, '${CLUSTER_NAME}')].RoleName" --output text)
+# 2. [자동 탐색] 노드 그룹 및 보안 그룹 ID 찾기
+AUTO_NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name ${CLUSTER_NAME} --region ${AWS_REGION} --query "nodegroups[0]" --output text)
 
-echo "🔑 Injecting Karpenter Policy to Node Role: $NODE_ROLE_NAME"
+if [ "$AUTO_NODEGROUP_NAME" == "None" ] || [ -z "$AUTO_NODEGROUP_NAME" ]; then
+    echo "❌ Error: 생성된 노드 그룹을 찾을 수 없습니다."
+    exit 1
+fi
+
+NODE_ROLE_ARN=$(aws eks describe-nodegroup --cluster-name ${CLUSTER_NAME} --nodegroup-name ${AUTO_NODEGROUP_NAME} --region ${AWS_REGION} --query "nodegroup.nodeRole" --output text)
+NODE_ROLE_NAME=$(echo $NODE_ROLE_ARN | cut -d'/' -f2)
+
+# 노드 공유 보안 그룹 ID 추출 (4443 포트용)
+NODE_SG_ID=$(aws ec2 describe-security-groups --filters Name=tag:alpha.eksctl.io/cluster-name,Values=$CLUSTER_NAME Name=group-name,Values="*ClusterSharedNodeSecurityGroup*" --query "SecurityGroups[0].GroupId" --output text)
+
+echo "🔑 Target Node Role: $NODE_ROLE_NAME"
+echo "🛡️ Target Node Security Group: $NODE_SG_ID"
+
+# 3. [보안] Metrics Server 통신을 위한 4443 포트 개방
+echo "🔓 Opening port 4443 in Security Group..."
+aws ec2 authorize-security-group-ingress \
+  --group-id $NODE_SG_ID \
+  --protocol tcp \
+  --port 4443 \
+  --source-group $NODE_SG_ID 2>/dev/null || echo "ℹ️ Port 4443 is already open or skip."
+
+# 4. Karpenter 정책 주입
 aws iam put-role-policy --role-name ${NODE_ROLE_NAME} \
   --policy-name KarpenterControllerPolicy \
   --policy-document '{
@@ -37,7 +60,7 @@ aws iam put-role-policy --role-name ${NODE_ROLE_NAME} \
     ]
 }'
 
-# 3. 신규 노드용 IAM 역할 및 프로파일 생성 [cite: 2026-02-25-1]
+# 5. 신규 노드용 IAM 역할 및 프로파일 생성
 aws iam create-role --role-name "KarpenterNodeRole-${CLUSTER_NAME}" \
   --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' 2>/dev/null
 
@@ -49,14 +72,15 @@ aws iam attach-role-policy --role-name "KarpenterNodeRole-${CLUSTER_NAME}" --pol
 aws iam create-instance-profile --instance-profile-name "KarpenterNodeInstanceProfile-${CLUSTER_NAME}" 2>/dev/null
 aws iam add-role-to-instance-profile --instance-profile-name "KarpenterNodeInstanceProfile-${CLUSTER_NAME}" --role-name "KarpenterNodeRole-${CLUSTER_NAME}" 2>/dev/null
 
-# 4. Discovery 태그 설정 (Karpenter가 자원을 찾기 위함) [cite: 2026-02-25-1]
-SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=tag:alpha.eksctl.io/cluster-name,Values=${CLUSTER_NAME}" --query 'Subnets[*].SubnetId' --output text)
+# 6. Discovery 태그 설정
+MY_VPC_ID=$(aws eks describe-cluster --name ${CLUSTER_NAME} --region ${AWS_REGION} --query "cluster.resourcesVpcConfig.vpcId" --output text)
+SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=${MY_VPC_ID}" --query 'Subnets[*].SubnetId' --output text)
 aws ec2 create-tags --resources $SUBNET_IDS --tags Key=karpenter.sh/discovery,Value=${CLUSTER_NAME}
 
-SG_IDS=$(aws ec2 describe-security-groups --filters "Name=tag:alpha.eksctl.io/cluster-name,Values=${CLUSTER_NAME}" --query 'SecurityGroups[*].GroupId' --output text)
+SG_IDS=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=${MY_VPC_ID}" --query 'SecurityGroups[*].GroupId' --output text)
 aws ec2 create-tags --resources $SG_IDS --tags Key=karpenter.sh/discovery,Value=${CLUSTER_NAME}
 
-# 5. Helm 설치 (v1.0.6) [cite: 2026-02-25-1]
+# 7. Karpenter Helm 설치 (v1.0.6)
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --version 1.0.6 \
   --namespace karpenter --create-namespace \
@@ -65,7 +89,7 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --set settings.interruptionQueueName=${CLUSTER_NAME} \
   --wait
 
-# 6. EKS 노드 인증 등록 (Access Entry) [cite: 2026-02-25-1]
+# 8. EKS 노드 인증 등록
 eksctl create iamidentitymapping \
   --cluster ${CLUSTER_NAME} \
   --region ${AWS_REGION} \
@@ -74,4 +98,14 @@ eksctl create iamidentitymapping \
   --group system:nodes \
   --username system:node:{{EC2PrivateDNSName}}
 
-echo "✅ [Success] Karpenter 1.0.6 설치 완료!"
+# 9. Metrics Server 설치
+echo "📊 Installing Metrics Server..."
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+echo "✅ [Success] 모든 설정이 완료되었습니다!"
+EOF
+
+chmod +x 04_setup_autoscaling_tools.sh
+
+# 이제 실행! [cite: 2026-02-14]
+./04_setup_autoscaling_tools.sh
