@@ -59,7 +59,7 @@ vpc:
         id: ${APP_PRI_SUBNET_B}
 
 managedNodeGroups:
-  - name: m7i-flex-large-nodes
+  - name: m7i-flex-large-nodes-nodegroup
     instanceType: m7i-flex.large
     desiredCapacity: 2
     volumeSize: 20
