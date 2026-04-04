@@ -35,7 +35,7 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
   - AdministratorAccess -> 최소 권한 4개로 변경
   - 파라미터로 넣는 방법은 권장되지 않음
-# [3]. 세번째 파일 (3_~)
+# [3]. 03_create_eks.sh
 ### 역할 : 각종 환경변수 저장 및 클러스터 생성
 0. vi 03_create_eks.sh
 1. 내용 복붙 + esc + :wq (저장)
@@ -47,7 +47,7 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
 
 
-# [4]. 네번째 파일 + env_config.txt
+# [4]. 04_setup_autoscaling_tools.txt + env_config.txt
 ### 역할 : 카펜터, 매트릭서버 설치
 
 0. env_config 생성
@@ -75,7 +75,7 @@ done
 보안 그룹 4443 포트 개방
 
 # [5]. (폐기) (EBS 관련)
-# [6]. 여섯번째 파일 
+# [6]. 06_create_namespaces.sh 
 ### 역할 : 네임스페이스 생성
 
 (0. env_config 생성) 했다고 가정
@@ -109,7 +109,7 @@ yaml파일을 따로 빼서 관리하는것이 좋지만 지금은 소규모 작
 
 (0. env_config 생성) 했다고 가정
 1. 06_create_namespaces.sh 내용 복붙
-2. 실행
+2. 실행 (10분~15분 걸려요)
 3. 확인 
 
 * 참고 : 
