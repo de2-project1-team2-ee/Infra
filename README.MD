@@ -37,7 +37,7 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
   - 파라미터로 넣는 방법은 권장되지 않음
 # [3]. 세번째 파일 (3_~)
 ### 역할 : 각종 환경변수 저장 및 클러스터 생성
-0. vi 3_create_eks.sh
+0. vi 03_create_eks.sh
 1. 내용 복붙 + esc + :wq (저장)
 2. chmod +x 03_create_eks.sh 입력 후 권한 생성
 3. ./03_create_eks.sh 실행
@@ -48,7 +48,7 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
 
 # [개발중]
-0. vi 4_setup_autoscaling_tools.sh
+0. vi 04_setup_autoscaling_tools.sh
 1. 내용 복붙 + esc + :wq (저장)
-2. chmod +x 4_setup_autoscaling_tools.sh 입력 후 권한 생성
-3. ./4_setup_autoscaling_tools.sh 실행
+2. chmod +x 04_setup_autoscaling_tools.sh 입력 후 권한 생성
+3. ./04_setup_autoscaling_tools.sh 실행
