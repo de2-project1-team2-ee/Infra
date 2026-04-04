@@ -11,7 +11,7 @@ https://app.diagrams.net/#Hsilver-ring-data%2FBootcamp_Study%2Fmain%2FK8S%2Finfr
 
 (이후 아래는 필요하다면 변경 CIDR 관련 파라미터들)
 
-# [2]. 두번째 파일 (2_~)
+# [2]. 02_noaccess-role-bastion-EC2.yml
 ### 역할 : Bastion 서버, 보안 그룹, IAM 역할, 자동 도구 설치 (툴 자동 설치로 시간 좀 걸려요)
 ### 1번파일에서 만든 vpc id와 public subnet A를 자동으로 매칭해서 만들어줌
 
