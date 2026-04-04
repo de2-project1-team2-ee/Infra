@@ -96,7 +96,9 @@ prod              Active   53s    env=prod,kubernetes.io/metadata.name=prod,serv
 stg               Active   53s    env=stg,kubernetes.io/metadata.name=stg,service=develop,team=team-1
 done
 ```
-* 참고 : 구성은 dev(개발용), prod(테스트용), stg(서비스) + monitoring(모니터링) 
+* 참고 : 
+구성은 dev(개발용), prod(테스트용), stg(서비스) + monitoring(모니터링) 
   - 모니터링에 대하여
     - (Prometheus(데이터 수집), Grafana(그래프 시각화), Kubecost(비용 분석)을 넣어서 모니터링용만
     - 목적 : 서비스 방(dev, prod)과 섞이지 않게 관리해야 인프라가 훨씬 깔끔하다고 합니다.
+yaml파일을 따로 빼서 관리하는것이 좋지만 지금은 소규모 작업이라 일단은 편하게 sh에 다 넣어놨습니다. -> 앞 파일에서도 그렇고 추후 필요하면 분리 필요
