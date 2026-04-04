@@ -1,0 +1,157 @@
+# 파드 띄우기
+cat << 'EOF' > 07_deploy_app.sh
+#!/bin/bash
+
+# 1. 리전 변수($AWS_REGION)가 없을 때만 env_config.sh 로드 [cite: 2026-04-04]
+if [ -z "$AWS_REGION" ]; then
+    echo "ℹ️ AWS_REGION이 없습니다. 환경 변수를 로드합니다..."
+    source ./env_config.sh
+else
+    echo "✅ 기존 환경 변수를 사용합니다. (Region: $AWS_REGION)"
+fi
+
+# 실시간으로 생성된 RDS 엔드포인트 주소 추출 [cite: 2026-04-04]
+DB_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier ${SERVICE_NAME}-db \
+  --query "DBInstances[0].Endpoint.Address" --output text)
+
+if [ "$DB_ENDPOINT" == "None" ] || [ -z "$DB_ENDPOINT" ]; then
+    echo "❌ 에러: RDS 엔드포인트를 찾을 수 없습니다. RDS가 생성 중인지 확인하세요."
+    exit 1
+fi
+
+echo "--------------------------------------------------------"
+echo "🏗️  [Step 1] ALB Controller IAM & Helm Setup"
+echo "--------------------------------------------------------"
+
+# 1-0. IAM OIDC Provider 활성화 (에러 해결 핵심!) [cite: 2026-04-04]
+echo "🔑 Associating IAM OIDC Provider..."
+eksctl utils associate-iam-oidc-provider \
+    --region=$AWS_REGION \
+    --cluster=$CLUSTER_NAME \
+    --approve
+
+# 1-1. IAM Policy 생성 (이미 있으면 건너뜀) [cite: 2026-04-04]
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json 2>/dev/null || echo "ℹ️ Policy already exists."
+
+# 1-2. Service Account 생성 [cite: 2026-04-04]
+eksctl create iamserviceaccount \
+  --cluster=$CLUSTER_NAME \
+  --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --role-name AmazonEKSLoadBalancerControllerRole \
+  --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve --override-existing-serviceaccounts
+
+# 1-3. Helm Controller 설치 [cite: 2026-04-04]
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update eks
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=$CLUSTER_NAME \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+
+# 1-4. 컨트롤러 준비 완료 대기 (Webhook 에러 방지용) [cite: 2026-04-04]
+echo "⏳ Waiting for ALB Controller to be Ready..."
+kubectl rollout status deployment/aws-load-balancer-controller -n kube-system
+sleep 30
+
+echo "--------------------------------------------------------"
+echo "📦 [Step 2] Manifest 생성 (Deployment + Service + Ingress)"
+echo "--------------------------------------------------------"
+
+cat <<EOT > app-alb-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${SERVICE_NAME}-app
+  namespace: dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${SERVICE_NAME}-api
+  template:
+    metadata:
+      labels:
+        app: ${SERVICE_NAME}-api
+    spec:
+      containers:
+      # [1] 메인 웹 서비스 컨테이너 [cite: 2026-04-05]
+      - name: web-app
+        image: bitnami/mysql:latest 
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        command: ["sh", "-c", "while true; do echo \"\$(date) - Web Traffic Received\" >> /var/log/app/access.log; sleep 5; done"]
+        volumeMounts:
+        - name: log-storage
+          mountPath: /var/log/app
+
+      # [2] 로그 수집 사이드카 컨테이너 (웹이 쓴 파일을 읽음) [cite: 2026-04-05]
+      - name: log-sidecar
+        image: busybox:latest
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+        command: ["sh", "-c", "tail -f /var/log/app/access.log"]
+        volumeMounts:
+        - name: log-storage
+          mountPath: /var/log/app
+
+      # [3] 두 컨테이너가 공유하는 볼륨 [cite: 2026-04-05]
+      volumes:
+      - name: log-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${SERVICE_NAME}-svc
+  namespace: dev
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: ${SERVICE_NAME}-api
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${SERVICE_NAME}-ingress
+  namespace: dev
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${SERVICE_NAME}-svc
+            port:
+              number: 80
+EOT
+
+kubectl apply -f app-alb-deployment.yaml
+
+echo "--------------------------------------------------------"
+echo "✅ ALB 배포 요청 완료!"
+echo "💡 주소 확인: kubectl get ingress -n dev -w"
+echo "💡 주소 확인: kubectl logs -f deployment/develop-app -c log-sidecar -n dev"
+echo "--------------------------------------------------------"
+EOF
+
+chmod +x 07_deploy_app.sh
+./07_deploy_app.sh
