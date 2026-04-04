@@ -55,3 +55,5 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 2. 04_setup_autoscaling_tools.txt 내용 복붙
 3. ./04_setup_autoscaling_tools.sh 실행
 4. ***리전 지역 직접 입력***
+
+* 참고 : 해당 클러스터의 index 0인 노드그룹에게만 권한 할당 -> 이거 나중에 프로젝트 규모가 커지면 조금 고려해야하는 부분이나, 현재로선 크게 문제는 없을듯
