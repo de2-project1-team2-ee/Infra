@@ -150,6 +150,7 @@ Found 2 pods, using pod/eunbee-app-65d6bc8445-584rv
 * 참고 : 
 로그 (현재 아키텍처는 사이드카가 공유 볼륨에서 로그를 읽어들이는 단계까지 구현되어 있으며, 최종 단계에서는 Fluent Bit 같은 에이전트를 통해 CloudWatch 엔드포인트로 로그를 전송해야함)
   - 또한 지금 한 로그파일로 관리중이라 로그가 많아지면 분리가 필요할수도 있음
+
 WAS(Spring Boot, Flask 등)를 띄우려면 소스 코드를 짜고, 도커로 빌드해서 ECR에 올리는 선행 작업이 반드시 필요 -> 현재 컨테이너는 web-app(nignx) + log-sidecar, log-storage를 통해 소통하는 방식
   - 사용자 → ALB (80포트)
   - ALB → Nginx (80포트)
