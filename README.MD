@@ -35,27 +35,31 @@ $\color{red}{\text{2. Team Number (1번 파일로 만든 것이랑 동일해야 
 
   - AdministratorAccess -> 최소 권한 4개로 변경
   - 파라미터로 넣는 방법은 권장되지 않음
+
+[PUTTY로 접속]
+- 이후 PUTTY에서 작업
+
+# [env_config.txt]
+### 역할 : 작업 시작전 변수가져오기
+
+1. 내용 복붙
+2. enter
+3. 리전 지역 입력
+
 # [3]. 03_create_eks.sh
 ### 역할 : 각종 환경변수 저장 및 클러스터 생성
-0. vi 03_create_eks.sh
-1. 내용 복붙 + esc + :wq (저장)
-2. chmod +x 03_create_eks.sh 입력 후 권한 생성
-3. ./03_create_eks.sh 실행
+1. 내용 복붙
+2. enter (15분정도 소요)
 
 * 참고 : 1번 스택이름을 자동화하려면 수정 필요. 일단은 nat-stack으로 생성하는 것으로 가정하고 진행 
   - 태그를 안쓰는 이유는 안정성때문 (이라고합니다)
   - 후에 클러스터 명명을 개발팀 공유 클러스터 / 마케팅 공유 클러스터 이런식으로 만들어야함. : 현재는 팀마다 개발1팀개발2팀 각각 클러스터 사용 (단점 : 비용)
 
-
-
 # [4]. 04_setup_autoscaling_tools.txt + env_config.txt
 ### 역할 : 카펜터, 매트릭서버 설치
 
-0. env_config 생성
-1. source env_config.sh로 실행하여 써야하는 변수 저장
-2. 04_setup_autoscaling_tools.txt 내용 복붙
-3. ./04_setup_autoscaling_tools.sh 실행
-4. ***리전 지역 직접 입력***
+1. 내용 복붙
+2. enter
 
 * 참고 : 해당 클러스터의 index 0인 노드그룹에게만 권한 할당 혹시 모든 노드 그룹에게 할당하려면 아래로 바꾸어야 함 -> 이건 테스트를 아직 안해봐서 수정은 안할게요
 ```bash
@@ -78,10 +82,9 @@ done
 # [5]. 05_create_namespaces.sh 
 ### 역할 : 네임스페이스 생성
 
-(0. env_config 생성) 했다고 가정
-1. 06_create_namespaces.sh 내용 복붙
-2. 실행
-3. 확인
+1. 내용 복붙
+2. enter
+
 ```bash
 #!/bin/bash
 [ec2-user@develop-team-1-bastion ~]$ kubectl get ns --show-labels
@@ -107,10 +110,8 @@ yaml파일을 따로 빼서 관리하는것이 좋지만 지금은 소규모 작
 # [6]. 06._rds_setup.sh
 ### 역할 : RDS 세팅
 
-(0. env_config 생성) 했다고 가정
-1. 06_create_namespaces.sh 내용 복붙
-2. 실행 (10분~15분 걸려요)
-3. 확인 
+1. 내용 복붙
+2. enter (15분정도소요, 중간에 한번 q 눌러줘야할수도)
 
 * 참고 : 
  - --multi-az로 AWS에서 친절하게 이중화 및 관리/연결을 해준다고 합니다. 복제 개념인거 같은데
@@ -122,6 +123,27 @@ yaml파일을 따로 빼서 관리하는것이 좋지만 지금은 소규모 작
 # [7]. 07_depoly_app.txt (개발중)
 ### 역할 : ALB 컨트롤러 설치 + 웹 앱 배포 + 사이드카 로그 수집 + 로드밸런서(ALB) 연결
 
+1. 내용 복붙
+2. enter (2분정도 소요)
+```bash
+#!/bin/bash
+[ec2-user@eunbee-team-1-bastion ~]$ kubectl logs -f deployment/eunbee-app -c log-sidecar -n dev
+Found 2 pods, using pod/eunbee-app-65d6bc8445-584rv
+10.0.16.130 - - [05/Apr/2026:06:50:42 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:50:57 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:50:57 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:51:12 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:51:12 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:51:27 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:51:27 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:51:42 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:51:42 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:51:57 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:51:57 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.17.99 - - [05/Apr/2026:06:52:12 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+10.0.16.130 - - [05/Apr/2026:06:52:13 +0000] "GET / HTTP/1.1" 200 124 "-" "ELB-HealthChecker/2.0" "-"
+
+```
 * 참고 : 
 로그 (현재 아키텍처는 사이드카가 공유 볼륨에서 로그를 읽어들이는 단계까지 구현되어 있으며, 최종 단계에서는 Fluent Bit 같은 에이전트를 통해 CloudWatch 엔드포인트로 로그를 전송해야함) 
 
