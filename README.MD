@@ -125,7 +125,9 @@ yaml파일을 따로 빼서 관리하는것이 좋지만 지금은 소규모 작
 
 1. 내용 복붙
 2. enter (2분정도 소요)
+
 <img width="788" height="123" alt="Image" src="https://github.com/user-attachments/assets/96fe4f74-87e3-4eaa-99f2-5e68ffad8234" />
+
 ```bash
 #!/bin/bash
 [ec2-user@eunbee-team-1-bastion ~]$ kubectl logs -f deployment/eunbee-app -c log-sidecar -n dev
