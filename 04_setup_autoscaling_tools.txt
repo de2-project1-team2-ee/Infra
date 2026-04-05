@@ -2,7 +2,7 @@ cat << 'EOF' > 04_setup_autoscaling_tools.sh
 #!/bin/bash
 
 # 1. 공통 환경 변수 로드 (여기서 리전 물어봄)
-source ./env_config.sh
+source ./env_config.sh || exit 1
 
 # 클러스터 엔드포인트 정보 추출
 export CLUSTER_ENDPOINT=$(aws eks describe-cluster --name ${CLUSTER_NAME} --region ${AWS_REGION} --query "cluster.endpoint" --output text)
@@ -106,6 +106,4 @@ echo "✅ [Success] 모든 설정이 완료되었습니다!"
 EOF
 
 chmod +x 04_setup_autoscaling_tools.sh
-
-# 이제 실행! [cite: 2026-02-14]
 ./04_setup_autoscaling_tools.sh
