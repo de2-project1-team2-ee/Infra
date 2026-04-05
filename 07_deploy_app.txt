@@ -1,14 +1,8 @@
-# 파드 띄우기
 cat << 'EOF' > 07_deploy_app.sh
 #!/bin/bash
 
 # 1. 리전 변수($AWS_REGION)가 없을 때만 env_config.sh 로드 [cite: 2026-04-04]
-if [ -z "$AWS_REGION" ]; then
-    echo "ℹ️ AWS_REGION이 없습니다. 환경 변수를 로드합니다..."
-    source ./env_config.sh
-else
-    echo "✅ 기존 환경 변수를 사용합니다. (Region: $AWS_REGION)"
-fi
+source ./env_config.sh || exit 1
 
 # 실시간으로 생성된 RDS 엔드포인트 주소 추출 [cite: 2026-04-04]
 DB_ENDPOINT=$(aws rds describe-db-instances \
@@ -80,31 +74,40 @@ spec:
         app: ${SERVICE_NAME}-api
     spec:
       containers:
-      # [1] 메인 웹 서비스 컨테이너 [cite: 2026-04-05]
       - name: web-app
-        image: bitnami/mysql:latest 
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-        command: ["sh", "-c", "while true; do echo \"\$(date) - Web Traffic Received\" >> /var/log/app/access.log; sleep 5; done"]
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            # 1. 팀 환영 페이지 생성 [cite: 2026-04-05]
+            echo "<h1>Welcome to ${SERVICE_NAME^^} Team ${TEAM_NUMBER}</h1>
+                  <p><b>RDS Endpoint:</b> ${DB_ENDPOINT}</p>" > /usr/share/nginx/html/index.html;
+            
+            # 2. 공유 로그 폴더 생성 [cite: 2026-04-05]
+            mkdir -p /var/log/app;
+            
+            # 3. [핵심] Nginx 기본 로그 경로를 공유 폴더로 연결! [cite: 2026-04-05]
+            # Nginx가 /var/log/nginx/access.log에 쓰면 자동으로 /var/log/app/access.log에 쌓이게 돼 [cite: 2026-04-05]
+            ln -sf /var/log/app/access.log /var/log/nginx/access.log;
+            ln -sf /var/log/app/error.log /var/log/nginx/error.log;
+            
+            # 4. Nginx 실행 [cite: 2026-04-05]
+            nginx -g 'daemon off;'
         volumeMounts:
         - name: log-storage
           mountPath: /var/log/app
 
-      # [2] 로그 수집 사이드카 컨테이너 (웹이 쓴 파일을 읽음) [cite: 2026-04-05]
+      # [2] 로그 수집 사이드카 (변화 없음)
       - name: log-sidecar
         image: busybox:latest
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
-        command: ["sh", "-c", "tail -f /var/log/app/access.log"]
+        command: ["sh", "-c", "mkdir -p /var/log/app && touch /var/log/app/access.log && tail -f /var/log/app/access.log"]
         volumeMounts:
         - name: log-storage
           mountPath: /var/log/app
 
-      # [3] 두 컨테이너가 공유하는 볼륨 [cite: 2026-04-05]
+      # [3] 공유 볼륨
       volumes:
       - name: log-storage
         emptyDir: {}
@@ -118,7 +121,7 @@ spec:
   type: NodePort
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 80  # [수정] 8080에서 80으로 변경 (Nginx 포트와 일치) [cite: 2026-04-05]
   selector:
     app: ${SERVICE_NAME}-api
 ---
@@ -149,7 +152,7 @@ kubectl apply -f app-alb-deployment.yaml
 echo "--------------------------------------------------------"
 echo "✅ ALB 배포 요청 완료!"
 echo "💡 주소 확인: kubectl get ingress -n dev -w"
-echo "💡 주소 확인: kubectl logs -f deployment/develop-app -c log-sidecar -n dev"
+echo "💡 로그 확인: kubectl logs -f deployment/${SERVICE_NAME}-app -c log-sidecar -n dev"
 echo "--------------------------------------------------------"
 EOF
 
