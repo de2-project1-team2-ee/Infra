@@ -1,13 +1,8 @@
-cat << 'EOF' > 06.5_rds_setup.sh
+cat << 'EOF' > 06.rds_setup.sh
 #!/bin/bash
 
 # 1. 공통 환경 변수 로드 (VPC, ClusterName 등) [cite: 2026-04-04]
-# 환경 변수 체크 로직 () [cite: 2026-01-23]
-if [ -z "$SERVICE_NAME" ] || [ -z "$TEAM_NUMBER" ] || [ -z "$CLUSTER_NAME" ]; then
-    echo "❌ 에러: 환경 변수가 로드되지 않았습니다!"
-    echo "💡 실행 전 'source ./env_config.sh'를 먼저 실행해주세요."
-    exit 1
-fi
+source ./env_config.sh || exit 1
 
 echo "--------------------------------------------------------"
 echo "🔍 [Step 1] 실시간 인프라 자원 검색 (Live Fetching)"
@@ -83,9 +78,9 @@ aws rds create-db-instance \
     --db-name "${SERVICE_NAME}db"
 
 echo "--------------------------------------------------------"
-echo "🚀 RDS 생성 요청이 전달되었습니다!"
+echo "🚀 RDS 생성 요청이 전달되었습니다!" (15분 정도 소요)
 echo "--------------------------------------------------------"
 EOF
 
-chmod +x 06.5_rds_setup.sh
-./06.5_rds_setup.sh
+chmod +x 06.rds_setup.sh
+./06.rds_setup.sh
