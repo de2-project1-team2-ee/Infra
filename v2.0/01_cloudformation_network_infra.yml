@@ -263,7 +263,6 @@ Resources:
 
   PublicRoute:
     Type: AWS::EC2::Route
-    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -278,7 +277,6 @@ Resources:
 
   PrivateNatRouteA:
     Type: AWS::EC2::Route
-    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PrivateRouteTableA
       DestinationCidrBlock: 0.0.0.0/0
@@ -306,7 +304,6 @@ Resources:
 
   PrivateNatRouteB:
     Type: AWS::EC2::Route
-    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PrivateRouteTableB
       DestinationCidrBlock: 0.0.0.0/0
