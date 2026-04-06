@@ -65,7 +65,7 @@ echo "✅ 보안 그룹 준비 완료: $RDS_SG_ID"
 # RDS 인스턴스 생성 (옵션명 수정: --no-publicly-accessible) [cite: 2026-04-04]
 aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
-    --db-instance-class db.t3.micro \
+    --db-instance-class db.t3.small \
     --engine postgres \
     --engine-version "17.6" \
     --master-username appuser \
