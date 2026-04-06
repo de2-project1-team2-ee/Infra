@@ -4,7 +4,7 @@ https://app.diagrams.net/#Hsilver-ring-data%2FBootcamp_Study%2Fmain%2FK8S%2Finfr
 
 0. cloudformation에서 스택 생성
   $\color{red}{\text{- 이름 생성시 이름 : nat-stack}}$ (임시로 사용, 명명규칙 바꿔야함)
-1. Service Name 입력
+1. Service Name 입력 (-,_ 들어가지 않게 만들기)
 2. team Number 입력
 
 <img width="1889" height="401" alt="Image" src="https://github.com/user-attachments/assets/1ece3b4a-f98a-42d8-8cbd-d2684f2ce4fa" />
