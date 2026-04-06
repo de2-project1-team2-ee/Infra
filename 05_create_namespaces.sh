@@ -50,7 +50,7 @@ metadata:
 INNER_EOF
 
 # 배포 [cite: 2026-02-14]
-envsubst < 06_create_namespaces.yaml | kubectl apply -f -
+envsubst < 05_create_namespaces.yaml | kubectl apply -f -
 
 echo "✅ Namespaces created successfully:"
 kubectl get ns -l service=${SERVICE_NAME} --show-labels
