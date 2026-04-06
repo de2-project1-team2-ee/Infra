@@ -25,7 +25,7 @@ eksctl create iamserviceaccount \
   --cluster=$CLUSTER_NAME \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
-  --role-name AmazonEKSLoadBalancerControllerRole \
+  --role-name AmazonEKS-LB-Controller-Role-${SERVICE_NAME}-T${TEAM_NUMBER} \
   --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
   --approve --override-existing-serviceaccounts
 
@@ -59,10 +59,22 @@ echo "--------------------------------------------------------"
 echo "🌐 [Step 3] ArgoCD 외부 접근 설정 + Application 등록"
 echo "--------------------------------------------------------"
 
-# 3-1. manifests 레포 클론
-git clone https://github.com/de2-project1-team2-ee/manifests.git /tmp/manifests 2>/dev/null || echo "ℹ️ Already cloned."
+# 3-1. 06에서 클론한 manifests 레포 최신화
+cd /tmp/manifests && git pull && cd ~
 
-# 3-2. ArgoCD LoadBalancer 서비스 적용 (외부 UI 접근용)
+# 3-2. deployment.example.yaml 기반으로 deployment.yaml 초기 생성
+cp /tmp/manifests/deployment.example.yaml /tmp/manifests/k8s/deployment.yaml
+sed -i "s|__AWS_ACCOUNT_ID__|${AWS_ACCOUNT_ID}|g" /tmp/manifests/k8s/deployment.yaml
+sed -i "s|__AWS_REGION__|${AWS_REGION}|g" /tmp/manifests/k8s/deployment.yaml
+sed -i "s|__IMAGE_TAG__|latest|g" /tmp/manifests/k8s/deployment.yaml
+
+cd /tmp/manifests
+git add k8s/deployment.yaml
+git commit -m "chore: initialize deployment.yaml from example [skip ci]" || echo "ℹ️ No changes to commit."
+git push
+cd ~
+
+# 3-3. ArgoCD LoadBalancer 서비스 적용 (외부 UI 접근용)
 kubectl apply -f /tmp/manifests/cicd/argocd-install.yaml
 
 # 3-3. ArgoCD Application 등록 (manifests 레포 k8s/ 폴더 자동 감시 + 배포)
