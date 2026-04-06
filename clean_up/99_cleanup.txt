@@ -1,0 +1,61 @@
+cat << 'EOF' > 99_destroy_all.sh
+#!/bin/bash
+set -x
+
+# 1. 환경 변수 로드 (은비의 파일명에 맞춤)
+source ./env_config.sh || exit 1
+
+echo "================================================="
+echo "▶ [START] 전체 인프라 및 애플리케이션 삭제 시작"
+echo "================================================="
+
+# 2. 외부 노출 리소스 (ALB/Ingress) 및 모니터링 삭제
+echo ">> [1/5] 모니터링(Prometheus/Grafana) 및 비용 관리 삭제..."
+# 프로메테우스/그라파나가 포함된 스택 삭제
+helm uninstall monitoring-stack -n monitoring --ignore-not-found
+# Kubecost 삭제
+helm uninstall kubecost -n kubecost --ignore-not-found
+
+# Ingress 삭제 (ALB가 실제로 AWS에서 삭제되도록 기다려야 함)
+kubectl delete ingress --all -A --ignore-not-found
+
+echo "⏳ 로드밸런서(ALB)가 물리적으로 철거되기를 기다립니다 (90s)..."
+sleep 90
+
+# 3. 오토스케일링 및 HPA 설정 삭제
+echo ">> [2/5] 오토스케일링(Karpenter/HPA) 자원 삭제..."
+# HPA 설정 삭제
+kubectl delete hpa --all -A --ignore-not-found
+# Karpenter 노드풀 삭제 (이걸 먼저 해야 노드들이 정상 종료됨)
+kubectl delete nodepool default --ignore-not-found
+kubectl delete ec2nodeclass default --ignore-not-found
+
+# 4. 컨트롤러 및 IAM 서비스 어카운트(IRSA) 삭제
+echo ">> [3/5] 컨트롤러(ALB, Karpenter) 및 IAM 권한 회수..."
+helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found
+helm uninstall karpenter -n karpenter --ignore-not-found
+
+# IRSA 삭제 (eksctl 사용)
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name aws-load-balancer-controller --namespace kube-system --wait
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name karpenter --namespace karpenter --wait
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name ebs-csi-controller-sa --namespace kube-system --wait
+
+# 5. RDS 데이터베이스 삭제
+echo ">> [4/5] RDS 데이터베이스 인스턴스 삭제..."
+aws rds delete-db-instance \
+    --db-instance-identifier ${SERVICE_NAME}-db \
+    --skip-final-snapshot \
+    --delete-automated-backups
+
+# 6. EKS 클러스터 및 VPC 인프라 최종 삭제
+echo ">> [5/5] EKS 클러스터 완전 철거 (최종 단계)..."
+eksctl delete cluster --name $CLUSTER_NAME --region $AWS_REGION --wait
+
+set +x
+echo "================================================="
+echo "🎉 모든 인프라가 깔끔하게 정리되었습니다, 은링!"
+echo "💡 마지막으로 AWS 콘솔에서 EBS 볼륨이 남았는지 꼭 확인해줘!"
+echo "================================================="
+EOF
+
+chmod +x 99_destroy_all.sh
