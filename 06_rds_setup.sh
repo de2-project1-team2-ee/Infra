@@ -65,7 +65,7 @@ echo "✅ 보안 그룹 준비 완료: $RDS_SG_ID"
 # RDS 인스턴스 생성 (옵션명 수정: --no-publicly-accessible) [cite: 2026-04-04]
 aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
-    --db-instance-class db.t3.micro \
+    --db-instance-class db.t3.small \
     --engine postgres \
     --engine-version "17.6" \
     --master-username appuser \
@@ -78,7 +78,58 @@ aws rds create-db-instance \
     --db-name "${SERVICE_NAME}db"
 
 echo "--------------------------------------------------------"
-echo "🚀 RDS 생성 요청이 전달되었습니다! (15분 정도 소요)"
+echo "🚀 RDS 생성 요청이 전달되었습니다!"
+echo "⏳ RDS 생성 대기 중... (15분 정도 소요)"
+echo "--------------------------------------------------------"
+
+aws rds wait db-instance-available \
+    --db-instance-identifier ${SERVICE_NAME}-db
+
+# RDS 엔드포인트 자동 추출
+DB_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier ${SERVICE_NAME}-db \
+  --query "DBInstances[0].Endpoint.Address" --output text)
+
+echo "✅ RDS 생성 완료: $DB_ENDPOINT"
+
+echo "--------------------------------------------------------"
+echo "📦 [Step 3] manifests 레포 rds-secret.yaml 자동 업데이트"
+echo "--------------------------------------------------------"
+
+# manifests 레포 클론
+git clone https://github.com/de2-project1-team2-ee/manifests.git /tmp/manifests 2>/dev/null \
+  || (cd /tmp/manifests && git pull)
+
+# rds-secret.yaml 생성
+cat > /tmp/manifests/k8s/rds-secret.yaml << INNER_EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rds-config
+  namespace: project
+data:
+  DB_HOST: "${DB_ENDPOINT}"
+  DB_PORT: "5432"
+  DB_NAME: "${SERVICE_NAME}db"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rds-secret
+  namespace: project
+type: Opaque
+stringData:
+  DB_USER: "appuser"
+  DB_PASSWORD: "Password123!"
+INNER_EOF
+
+cd /tmp/manifests || exit 1
+git add k8s/rds-secret.yaml
+git commit -m "chore: update RDS endpoint to ${DB_ENDPOINT} [skip ci]" || echo "ℹ️ No changes to commit."
+git push
+
+cd ~
+echo "✅ manifests 레포 업데이트 완료! ArgoCD가 자동 배포합니다."
 echo "--------------------------------------------------------"
 EOF
 
