@@ -34,7 +34,7 @@ echo "--------------------------------------------------------"
 echo "✅ 삭제 완료 확인 중..."
 kubectl get ns kubecost
 echo "--------------------------------------------------------"
-echo "💡 이제 08_install_kubecost.sh를 다시 실행해도 좋아!"
+echo "💡 kubectl get ns kubecost로 지워진 것 확인할 것"
 EOF
 
 chmod +x 09_cleanup_kubecost.sh
