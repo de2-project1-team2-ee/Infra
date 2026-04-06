@@ -8,6 +8,7 @@ Bash
 # 아무것도 안 뜨거나 'No clusters found'가 나와야 해.
 eksctl get cluster --region $AWS_REGION
 ```
+또한 cloudformation에서 cluster 관련 스택 지워졌는지 확인 (거의 제일 늦게 지워짐)
 
 쿠버네티스 연결 끊김 확인:
 ```
