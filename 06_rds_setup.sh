@@ -68,7 +68,7 @@ aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
     --db-instance-class db.t3.micro \
     --engine postgres \
-    --master-username admin \
+    --master-username appuser \
     --master-user-password "Password123!" \
     --allocated-storage 20 \
     --db-subnet-group-name ${SERVICE_NAME}-rds-sng \
