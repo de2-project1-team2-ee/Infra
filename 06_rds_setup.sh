@@ -44,7 +44,7 @@ fi
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SG_ID \
     --protocol tcp \
-    --port 3306 \
+    --port 5432 \
     --source-group $NODE_SG_ID 2>/dev/null || echo "ℹ️ Node SG rule already exists."
 
 # 3. [추가] 배스천 호스트 보안 그룹 허용 (임시 오픈) [cite: 2026-04-04]
@@ -56,7 +56,7 @@ if [ "$BASTION_SG_ID" != "None" ]; then
     aws ec2 authorize-security-group-ingress \
         --group-id $RDS_SG_ID \
         --protocol tcp \
-        --port 3306 \
+        --port 5432 \
         --source-group $BASTION_SG_ID 2>/dev/null || echo "ℹ️ Bastion SG rule already exists."
     echo "✅ 보안 설정 완료: Node SG($NODE_SG_ID) & Bastion SG($BASTION_SG_ID)"
 fi
@@ -67,7 +67,7 @@ echo "✅ 보안 그룹 준비 완료: $RDS_SG_ID"
 aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
     --db-instance-class db.t3.micro \
-    --engine mysql \
+    --engine postgres \
     --master-username admin \
     --master-user-password "Password123!" \
     --allocated-storage 20 \
