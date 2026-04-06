@@ -9,6 +9,12 @@ echo "================================================="
 echo "▶ [START] 전체 인프라 및 애플리케이션 삭제 시작"
 echo "================================================="
 
+echo ">> [NEW] Deleting ArgoCD and Specific Namespaces..."
+kubectl delete -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --ignore-not-found
+for ns in dev stg prod monitoring kubecost argocd karpenter; do 
+  kubectl delete namespace $ns --ignore-not-found
+done
+
 # 2. 외부 노출 리소스 (ALB/Ingress) 및 모니터링 삭제
 echo ">> [1/5] 모니터링(Prometheus/Grafana) 및 비용 관리 삭제..."
 # 프로메테우스/그라파나가 포함된 스택 삭제
