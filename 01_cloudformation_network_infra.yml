@@ -252,6 +252,19 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGatewayA
 
+  # DB 전용 라우팅 테이블 (NAT 경로 없음)
+  DBRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-a" }]
+
+  DBRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-b" }]
+
   # --- [Private B용 라우팅: NAT-B 사용] ---
   PrivateRouteTableB:
     Type: AWS::EC2::RouteTable
@@ -269,17 +282,26 @@ Resources:
   # =========================================================
   # 7. 서브넷-라우팅 테이블 연결 (대칭 연결)
   # =========================================================
+
   # Public 연결
   PubAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetA, RouteTableId: !Ref PublicRouteTable } }
   PubAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetB, RouteTableId: !Ref PublicRouteTable } }
 
-  # Private A 계층 연결 (App-a, DB-a) -> NAT-A 경로 사용
+  # Private A 계층 연결 (App-a는 NAT 사용, DB-a는 Isolated)
   AppAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetA, RouteTableId: !Ref PrivateRouteTableA } }
-  DBAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetA, RouteTableId: !Ref PrivateRouteTableA } }
+  DBAssocA: 
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      SubnetId: !Ref TeamDBSubnetA
+      RouteTableId: !Ref DBRouteTableA
 
-  # Private B 계층 연결 (App-b, DB-b) -> NAT-B 경로 사용
+  # Private B 계층 연결 (App-b는 NAT 사용, DB-b는 Isolated)
   AppAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetB, RouteTableId: !Ref PrivateRouteTableB } }
-  DBAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamDBSubnetB, RouteTableId: !Ref PrivateRouteTableB } }
+  DBAssocB: 
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      SubnetId: !Ref TeamDBSubnetB
+      RouteTableId: !Ref DBRouteTableB
 
   # 변수 값 할당
 Outputs:
@@ -308,7 +330,7 @@ Outputs:
     Value: !Ref TeamAppSubnetB
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
-  
+
   # --- [추가된 부분: RDS 스크립트 연동용] --- [cite: 2026-04-04]
   ExportDBSubnetA:
     Value: !Ref TeamDBSubnetA
