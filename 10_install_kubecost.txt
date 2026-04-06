@@ -100,4 +100,4 @@ echo "--------------------------------------------------------"
 EOF
 
 chmod +x 08_install_kubecost.sh
-./08_install_kubecost.sha
+./08_install_kubecost.sh
