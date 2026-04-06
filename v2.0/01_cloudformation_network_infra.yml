@@ -2,18 +2,19 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: |
   [Data Engineering Project] 
   Multi-AZ (2 AZs) 3-Tier VPC Infrastructure.
-  This template provides high availability and scalability for EKS clusters.
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "1. Project & Team Infomation"
+          default: "1. Project & Team Information"
         Parameters:
           - ServiceName
           - TeamNumber
       - Label:
-          default: "2. Network Basic Configuration"
+          default: "2. Network Configuration (Create or Select)"
         Parameters:
+          - ExistingVpcId
           - VPCCidr
       - Label:
           default: "3. Advanced Network Sizing"
@@ -25,50 +26,76 @@ Metadata:
           - AppSubnetCount
           - PublicDBSubnetCount
     ParameterLabels:
-      ServiceName:
-        default: "Service Name (e.g., develop)"
-      TeamNumber:
-        default: "Team Number"
-      VPCCidr:
-        default: "VPC CIDR Block"
+      # (기존 라벨들 뒤에 추가)
+      ServiceName: { default: "Service Name" }
+      TeamNumber: { default: "Team Number" }
+      ExistingVpcId: { default: "Existing VPC ID (Optional)" }
+      VPCCidr: { default: "VPC CIDR Block" }
+      TeamChunkCount: { default: "Team Chunk Count" }
+      TeamMaskBits: { default: "Team Mask Bits" }
+      AppSubnetMaskBits: { default: "App Subnet Mask Bits" }
+      PublicDBSubnetMaskBits: { default: "Public/DB Subnet Mask Bits" }
+      AppSubnetCount: { default: "App Subnet Count" }
+      PublicDBSubnetCount: { default: "Public/DB Subnet Count" }
+
 Parameters:
   ServiceName:
     Type: String
-    Default: "EnterTheServiceName" # 은비의 프로젝트 서비스 이름
-    Description: "Name of the service/project"
+    Default: "data-pipeline"
+    Description: "Name of the service/project."
+
   TeamNumber:
     Type: Number
     Default: 1
+    Description: "Team ID (1, 2, 3...). Used to calculate non-overlapping CIDR blocks."
+
+  ExistingVpcId:
+    Type: String
+    Default: ""
+    Description: "Optional: Enter an existing VPC ID to reuse. If left blank, a new VPC will be created."
+
   VPCCidr:
     Type: String
-    Default: "10.0.0.0/20"
+    Default: "10.0.0.0/16"
+    Description: "CIDR block for the new VPC. (e.g., 10.0.0.0/20)"
   
   # --- [네트워크 사이징 파라미터] ---
 # 1. 팀당 할당량 설정 (이미지 전체 크기: /20)
-  TeamChunkCount: 
-    Type: Number 
-    Default: 16   # VPC(/16)를 16개로 나눔
-  TeamMaskBits: 
-    Type: Number 
-    Default: 12   # 32 - 12 = 20비트 (팀당 /20 대역폭)
-
-  # 2. 서브넷별 마스크 비트 설정 (이미지 수치 반영)
-  # App(/22)을 위해 10비트, Public/DB(/24)를 위해 8비트 사용
-  AppSubnetMaskBits: 
-    Type: Number 
-    Default: 10   # 32 - 10 = 22비트 (/22 대역)
-  PublicDBSubnetMaskBits: 
-    Type: Number 
-    Default: 8    # 32 - 8 = 24비트 (/24 대역)
-
-  # 3. 슬롯 개수 설정 (계산을 위한 칸막이 수)
-  # /20 대역 안에 /22는 4개가 들어가고, /24는 16개가 들어감
-  AppSubnetCount: 
-    Type: Number 
-    Default: 4 
-  PublicDBSubnetCount: 
-    Type: Number 
+# --- [Advanced Network Sizing Parameters] ---
+  TeamChunkCount:
+    Type: Number
     Default: 16
+    Description: "Number of team chunks to divide the /16 VPC."
+
+  TeamMaskBits:
+    Type: Number
+    Default: 12
+    Description: "Bits to subtract from 32 to get a /20 per team."
+
+  AppSubnetMaskBits:
+    Type: Number
+    Default: 10
+    Description: "Bits to subtract from 32 to get a /22 for App subnets."
+
+  PublicDBSubnetMaskBits:
+    Type: Number
+    Default: 8
+    Description: "Bits to subtract from 32 to get a /24 for Public/DB subnets."
+
+  AppSubnetCount:
+    Type: Number
+    Default: 4
+    Description: "Number of /22 slots available within a /20 block."
+
+  PublicDBSubnetCount:
+    Type: Number
+    Default: 16
+    Description: "Number of /24 slots available within a /20 block."
+
+Conditions:
+  # Check if a new VPC should be created [cite: 2026-02-14]
+  CreateNewVPC: !Equals [ !Ref ExistingVpcId, "" ] # 빈칸이면 vpc 생성
+  
 
 Resources:
   # =========================================================
@@ -76,23 +103,22 @@ Resources:
   # =========================================================
   MainVPC:
     Type: AWS::EC2::VPC
+    Condition: CreateNewVPC
     Properties:
       CidrBlock: !Ref VPCCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc" }]
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
+    Condition: CreateNewVPC
     Properties:
-      Tags:
-        - Key: Name
-          Value: !Sub "${ServiceName}-team-${TeamNumber}-igw"
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-igw" }]
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreateNewVPC
     Properties:
       VpcId: !Ref MainVPC
       InternetGatewayId: !Ref InternetGateway
@@ -104,11 +130,13 @@ Resources:
   # AZ-a용 NAT 및 IP
   NatEIPA:
     Type: AWS::EC2::EIP
-    DependsOn: AttachGateway
+    Condition: CreateNewVPC # 새로 만들 때만 생성
+    DependsOn: AttachGateway # 이제 단순 문자열로 써도 에러가 안 나!
     Properties: { Domain: vpc }
 
   NatGatewayA:
     Type: AWS::EC2::NatGateway
+    Condition: CreateNewVPC # 이것도 세트로 묶어줘
     Properties:
       AllocationId: !GetAtt NatEIPA.AllocationId
       SubnetId: !Ref TeamPublicSubnetA
@@ -117,11 +145,13 @@ Resources:
   # AZ-b용 NAT 및 IP
   NatEIPB:
     Type: AWS::EC2::EIP
+    Condition: CreateNewVPC
     DependsOn: AttachGateway
     Properties: { Domain: vpc }
 
   NatGatewayB:
     Type: AWS::EC2::NatGateway
+    Condition: CreateNewVPC
     Properties:
       AllocationId: !GetAtt NatEIPB.AllocationId
       SubnetId: !Ref TeamPublicSubnetB
@@ -135,9 +165,9 @@ Resources:
   TeamPublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 0번째 /24 조각
-      CidrBlock: !Select [ 0, !Cidr [ !Ref VPCCidr, 16, 8 ] ]
+      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 16, 8 ] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -149,9 +179,9 @@ Resources:
   TeamPublicSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 1번째 /24 조각
-      CidrBlock: !Select [ 1, !Cidr [ !Ref VPCCidr, 16, 8 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 16, 8 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
@@ -167,9 +197,10 @@ Resources:
   TeamAppSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 1번째 /22 조각 (이미지에서 .4.0 지점)
-      CidrBlock: !Select [ 1, !Cidr [ !Ref VPCCidr, 4, 10 ] ]
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 4, 10 ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
           Value: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
@@ -181,9 +212,9 @@ Resources:
   TeamAppSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 2번째 /22 조각 (이미지에서 .8.0 지점)
-      CidrBlock: !Select [ 2, !Cidr [ !Ref VPCCidr, 4, 10 ] ]
+      CidrBlock: !Select [ 2, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 4, 10 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -201,9 +232,9 @@ Resources:
   TeamDBSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 12번째 /24 조각 (이미지에서 .12.0 지점)
-      CidrBlock: !Select [ 12, !Cidr [ !Ref VPCCidr, 16, 8 ] ]
+      CidrBlock: !Select [ 12, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 16, 8 ] ]
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -212,9 +243,9 @@ Resources:
   TeamDBSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       # 팀 /20 대역 중 13번째 /24 조각 (이미지에서 .13.0 지점)
-      CidrBlock: !Select [ 13, !Cidr [ !Ref VPCCidr, 16, 8 ] ]
+      CidrBlock: !Select [ 13, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, 16, 12 ] ], 16, 8 ] ]
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       Tags:
         - Key: Name
@@ -227,11 +258,12 @@ Resources:
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-pub-rt" }]
 
   PublicRoute:
     Type: AWS::EC2::Route
+    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -241,11 +273,12 @@ Resources:
   PrivateRouteTableA:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-priv-rt-a" }]
 
   PrivateNatRouteA:
     Type: AWS::EC2::Route
+    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PrivateRouteTableA
       DestinationCidrBlock: 0.0.0.0/0
@@ -255,24 +288,25 @@ Resources:
   DBRouteTableA:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-a" }]
 
   DBRouteTableB:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-b" }]
 
   # --- [Private B용 라우팅: NAT-B 사용] ---
   PrivateRouteTableB:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref MainVPC
+      VpcId: !If [ CreateNewVPC, !Ref MainVPC, !Ref ExistingVpcId ]
       Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-priv-rt-b" }]
 
   PrivateNatRouteB:
     Type: AWS::EC2::Route
+    Condition: CreateNewVPC
     Properties:
       RouteTableId: !Ref PrivateRouteTableB
       DestinationCidrBlock: 0.0.0.0/0
@@ -306,9 +340,10 @@ Resources:
 Outputs:
   # 1. VPC ID
   ExportVpcId:
+    Condition: CreateNewVPC # 새로 만들 때만 이 Output을 활성화
     Value: !Ref MainVPC
     Export:
-      Name: !Sub "${ServiceName}-team-${TeamNumber}-vpc" # 명칭 통일
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
 
   # 2. Public Subnets (이름 형식: 서비스-team-번호-pub-a)
   ExportPublicSubnetA:
