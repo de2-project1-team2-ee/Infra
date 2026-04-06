@@ -1,0 +1,353 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  [Data Engineering Project] 
+  Multi-AZ (2 AZs) 3-Tier VPC Infrastructure.
+  This template provides high availability and scalability for EKS clusters.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "1. Project & Team Infomation"
+        Parameters:
+          - ServiceName
+          - TeamNumber
+      - Label:
+          default: "2. Network Basic Configuration"
+        Parameters:
+          - VPCCidr
+      - Label:
+          default: "3. Advanced Network Sizing"
+        Parameters:
+          - TeamChunkCount
+          - TeamMaskBits
+          - AppSubnetMaskBits
+          - PublicDBSubnetMaskBits
+          - AppSubnetCount
+          - PublicDBSubnetCount
+    ParameterLabels:
+      ServiceName:
+        default: "Service Name (e.g., develop)"
+      TeamNumber:
+        default: "Team Number"
+      VPCCidr:
+        default: "VPC CIDR Block"
+Parameters:
+  ServiceName:
+    Type: String
+    Default: "EnterTheServiceName" # 은비의 프로젝트 서비스 이름
+    Description: "Name of the service/project"
+  TeamNumber:
+    Type: Number
+    Default: 1
+  VPCCidr:
+    Type: String
+    Default: "10.0.0.0/20"
+  
+  # --- [네트워크 사이징 파라미터] ---
+# 1. 팀당 할당량 설정 (이미지 전체 크기: /20)
+  TeamChunkCount: 
+    Type: Number 
+    Default: 16   # VPC(/16)를 16개로 나눔
+  TeamMaskBits: 
+    Type: Number 
+    Default: 12   # 32 - 12 = 20비트 (팀당 /20 대역폭)
+
+  # 2. 서브넷별 마스크 비트 설정 (이미지 수치 반영)
+  # App(/22)을 위해 10비트, Public/DB(/24)를 위해 8비트 사용
+  AppSubnetMaskBits: 
+    Type: Number 
+    Default: 10   # 32 - 10 = 22비트 (/22 대역)
+  PublicDBSubnetMaskBits: 
+    Type: Number 
+    Default: 8    # 32 - 8 = 24비트 (/24 대역)
+
+  # 3. 슬롯 개수 설정 (계산을 위한 칸막이 수)
+  # /20 대역 안에 /22는 4개가 들어가고, /24는 16개가 들어감
+  AppSubnetCount: 
+    Type: Number 
+    Default: 4 
+  PublicDBSubnetCount: 
+    Type: Number 
+    Default: 16
+
+Resources:
+  # =========================================================
+  # 1. 공용 네트워크 리소스 (VPC, IGW)
+  # =========================================================
+  MainVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-vpc"
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-igw"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MainVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # =========================================================
+  # 2. NAT Gateway (Public 영역에 위치하여 Private 통신 지원)
+  # 비용 최적화를 위해 NAT는 AZ-a에 1개만 생성 (운영 환경은 AZ별 생성이 정석)
+  # =========================================================
+  # AZ-a용 NAT 및 IP
+  NatEIPA:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties: { Domain: vpc }
+
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPA.AllocationId
+      SubnetId: !Ref TeamPublicSubnetA
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-nat-a" }]
+  
+  # AZ-b용 NAT 및 IP
+  NatEIPB:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties: { Domain: vpc }
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIPB.AllocationId
+      SubnetId: !Ref TeamPublicSubnetB
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-nat-b" }]
+
+  # =========================================================
+  # 3. Public Subnets (가용영역 A, B 대칭 배치)
+  # 외부 로드밸런서(ALB)가 배치될 구역
+  # =========================================================
+  # Public Subnet A (팀 대역 내의 특정 지점부터 /26 쪼개기)
+  TeamPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 0번째 /24 조각
+      CidrBlock: !Select [ 0, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-pub-a"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+
+  TeamPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 1번째 /24 조각
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-pub-b"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+
+  # =========================================================
+  # 4. App Private Subnets (가용영역 A, B 대칭 배치)
+  # EKS 워커 노드 및 데이터 처리 엔진이 실행될 핵심 구역
+  # =========================================================
+  TeamAppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 1번째 /22 조각 (이미지에서 .4.0 지점)
+      CidrBlock: !Select [ 1, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref AppSubnetCount, !Ref AppSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
+        - Key: "kubernetes.io/role/internal-elb"
+          Value: "1"
+        - Key: "karpenter.sh/discovery"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
+
+  TeamAppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 2번째 /22 조각 (이미지에서 .8.0 지점)
+      CidrBlock: !Select [ 2, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref AppSubnetCount, !Ref AppSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
+        - Key: "kubernetes.io/role/internal-elb"
+          Value: "1"
+        - Key: "karpenter.sh/discovery"
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
+
+  # =========================================================
+  # 5. DB Private Subnets (가용영역 A, B 대칭 배치)
+  # 데이터 저장소(RDS 등)가 위치할 보안 최상위 구역
+  # =========================================================
+  # DB Subnets (인덱스 10, 11 사용)
+  TeamDBSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 12번째 /24 조각 (이미지에서 .12.0 지점)
+      CidrBlock: !Select [ 12, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-db-a"
+
+  TeamDBSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MainVPC
+      # 팀 /20 대역 중 13번째 /24 조각 (이미지에서 .13.0 지점)
+      CidrBlock: !Select [ 13, !Cidr [ !Select [ !Ref TeamNumber, !Cidr [ !Ref VPCCidr, !Ref TeamChunkCount, !Ref TeamMaskBits ] ], !Ref PublicDBSubnetCount, !Ref PublicDBSubnetMaskBits ] ]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-team-${TeamNumber}-db-b"
+
+  # =========================================================
+  # 6. 라우팅 및 연결 설정
+  # =========================================================
+  # Public은 IGW 하나를 공유하므로 기존과 동일
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-pub-rt" }]
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # --- [Private A용 라우팅: NAT-A 사용] ---
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-priv-rt-a" }]
+
+  PrivateNatRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+
+  # DB 전용 라우팅 테이블 (NAT 경로 없음)
+  DBRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-a" }]
+
+  DBRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-db-rt-b" }]
+
+  # --- [Private B용 라우팅: NAT-B 사용] ---
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MainVPC
+      Tags: [{ Key: Name, Value: !Sub "${ServiceName}-team-${TeamNumber}-priv-rt-b" }]
+
+  PrivateNatRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  # =========================================================
+  # 7. 서브넷-라우팅 테이블 연결 (대칭 연결)
+  # =========================================================
+
+  # Public 연결
+  PubAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetA, RouteTableId: !Ref PublicRouteTable } }
+  PubAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamPublicSubnetB, RouteTableId: !Ref PublicRouteTable } }
+
+  # Private A 계층 연결 (App-a는 NAT 사용, DB-a는 Isolated)
+  AppAssocA: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetA, RouteTableId: !Ref PrivateRouteTableA } }
+  DBAssocA: 
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      SubnetId: !Ref TeamDBSubnetA
+      RouteTableId: !Ref DBRouteTableA
+
+  # Private B 계층 연결 (App-b는 NAT 사용, DB-b는 Isolated)
+  AppAssocB: { Type: AWS::EC2::SubnetRouteTableAssociation, Properties: { SubnetId: !Ref TeamAppSubnetB, RouteTableId: !Ref PrivateRouteTableB } }
+  DBAssocB: 
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      SubnetId: !Ref TeamDBSubnetB
+      RouteTableId: !Ref DBRouteTableB
+
+  # 변수 값 할당
+Outputs:
+  # 1. VPC ID
+  ExportVpcId:
+    Value: !Ref MainVPC
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-vpc" # 명칭 통일
+
+  # 2. Public Subnets (이름 형식: 서비스-team-번호-pub-a)
+  ExportPublicSubnetA:
+    Value: !Ref TeamPublicSubnetA
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-pub-a"
+  ExportPublicSubnetB:
+    Value: !Ref TeamPublicSubnetB
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-pub-b"
+
+  # 3. App Private Subnets (이름 형식: 서비스-team-번호-app-a)
+  ExportAppSubnetA:
+    Value: !Ref TeamAppSubnetA
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
+  ExportAppSubnetB:
+    Value: !Ref TeamAppSubnetB
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
+
+  # --- [추가된 부분: RDS 스크립트 연동용] --- [cite: 2026-04-04]
+  ExportDBSubnetA:
+    Value: !Ref TeamDBSubnetA
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-db-a"
+  ExportDBSubnetB:
+    Value: !Ref TeamDBSubnetB
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-db-b"
+
+  # 4. 서비스 정보 (순수 값만 추출하기 위한 통로) [cite: 2026-02-14]
+  ExportServiceName:
+    Value: !Ref ServiceName
+    Export:
+      Name: !Sub "${ServiceName}-service-name" 
+
+  ExportTeamNumber:
+    Value: !Ref TeamNumber
+    Export:
+      Name: !Sub "${ServiceName}-team-number"
