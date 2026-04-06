@@ -8,10 +8,9 @@ echo "--------------------------------------------------------"
 echo "🔍 [Step 1] 실시간 인프라 자원 검색 (Live Fetching)"
 echo "--------------------------------------------------------"
 
-NODE_SG_ID=$(aws ec2 describe-security-groups \
-  --filters Name=tag:alpha.eksctl.io/cluster-name,Values=$CLUSTER_NAME \
-  Name=group-name,Values="*ClusterSharedNodeSecurityGroup*" \
-  --query "SecurityGroups[0].GroupId" --output text)
+NODE_SG_ID=$(aws ec2 describe-instances \
+  --filters Name=tag:eks:cluster-name,Values=$CLUSTER_NAME \
+  --query "Reservations[0].Instances[0].SecurityGroups[0].GroupId" --output text)
 
 if [ "$NODE_SG_ID" == "None" ] || [ -z "$NODE_SG_ID" ]; then
     echo "❌ [Error] EKS 노드 보안 그룹을 찾을 수 없습니다."
@@ -48,9 +47,9 @@ aws ec2 authorize-security-group-ingress \
     --source-group $NODE_SG_ID 2>/dev/null || echo "ℹ️ Node SG rule already exists."
 
 # 3. [추가] 배스천 호스트 보안 그룹 허용 (임시 오픈) [cite: 2026-04-04]
-BASTION_SG_ID=$(aws ec2 describe-security-groups \
-    --filters Name=group-name,Values="*bastion-sg*" \
-    --query "SecurityGroups[0].GroupId" --output text)
+BASTION_SG_ID=$(aws ec2 describe-instances \
+    --filters Name=tag:Name,Values="*bastion*" \
+    --query "Reservations[0].Instances[0].SecurityGroups[0].GroupId" --output text)
 
 if [ "$BASTION_SG_ID" != "None" ]; then
     aws ec2 authorize-security-group-ingress \
@@ -68,6 +67,7 @@ aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
     --db-instance-class db.t3.micro \
     --engine postgres \
+    --engine-version "17.6" \
     --master-username appuser \
     --master-user-password "Password123!" \
     --allocated-storage 20 \
