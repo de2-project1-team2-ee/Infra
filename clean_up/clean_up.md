@@ -2,14 +2,19 @@
 먼저 우리 조종실에서 클러스터의 흔적이 지워졌는지 확인하는 단계야.
 
 클러스터 존재 여부 확인:
+
+```
 Bash
 # 아무것도 안 뜨거나 'No clusters found'가 나와야 해.
 eksctl get cluster --region $AWS_REGION
+```
 
 쿠버네티스 연결 끊김 확인:
+```
 Bash
 # 'The connection to the server was refused' 에러가 나면 정상이야. (서버가 죽었으니까!)
 kubectl get nodes
+```
 
 
 2. AWS 콘솔에서 '수동' 확인 (가장 중요!)
