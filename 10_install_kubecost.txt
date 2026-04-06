@@ -1,1 +1,103 @@
 
+cat << 'EOF' > 08_install_kubecost.sh
+#!/bin/bash
+
+# 1. 환경 변수 로드 [cite: 1, 31]
+source ./env_config.sh || exit 1
+
+echo "--------------------------------------------------------"
+echo "🛠️  [Step 1] EBS CSI Driver Setup (Team-${TEAM_NUMBER})"
+echo "--------------------------------------------------------"
+
+# 1-1. IAM OIDC Provider 활성화 [cite: 15, 41]
+eksctl utils associate-iam-oidc-provider \
+  --cluster $CLUSTER_NAME \
+  --region $AWS_REGION \
+  --approve
+
+# 1-2. IAM ServiceAccount 생성 (이름 규칙 통일) [cite: 42]
+eksctl create iamserviceaccount \
+  --name ebs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster $CLUSTER_NAME \
+  --region $AWS_REGION \
+  --role-name "AmazonEKS-EBS-CSI-DriverRole-team-${TEAM_NUMBER}" \
+  --role-only \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve --override-existing-serviceaccounts
+
+# 1-3. EBS CSI Driver 애드온 설치 (명시적 권한 부여) 
+aws eks create-addon \
+  --cluster-name $CLUSTER_NAME \
+  --region $AWS_REGION \
+  --addon-name aws-ebs-csi-driver \
+  --service-account-role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS-EBS-CSI-DriverRole-team-${TEAM_NUMBER}" \
+  --force
+
+# [수정 포인트] 드라이버가 완전히 Running 될 때까지 대기 및 검증 [cite: 44]
+echo "⏳ Waiting for EBS CSI Driver to be fully Running..."
+for i in {1..15}; do
+  READY_PODS=$(kubectl get pods -n kube-system | grep ebs-csi-controller | grep Running | wc -l)
+  if [ "$READY_PODS" -ge 1 ]; then
+    echo "✅ EBS CSI Driver is Ready!"
+    break
+  fi
+  echo "...waiting ($i/15)"
+  sleep 10
+done
+
+echo "--------------------------------------------------------"
+echo "📊 [Step 2] Kubecost Installation (v2.8.6)"
+echo "--------------------------------------------------------"
+
+# 2-1. Namespace 생성 [cite: 10, 46]
+kubectl create namespace kubecost --dry-run=client -o yaml | kubectl apply -f -
+
+# 2-2. Helm Repo 업데이트 [cite: 46]
+helm repo add kubecost https://kubecost.github.io/cost-analyzer/
+helm repo update
+
+# 2-3. Kubecost 설치 (gp2 스토리지 명시) [cite: 46]
+helm upgrade --install kubecost kubecost/cost-analyzer \
+  --namespace kubecost \
+  --version 2.8.6 \
+  --set kubecostToken="free" \
+  --set global.clusterId="${CLUSTER_NAME}" \
+  --set persistentVolume.storageClass=gp2 \
+  --set prometheus.server.persistentVolume.storageClass=gp2
+
+# 2-4. Kubecost Ingress 생성 [cite: 28]
+cat <<EOT > kubecost-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubecost-ingress
+  namespace: kubecost
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-name: "k8s-kubecost-t${TEAM_NUMBER}"
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubecost-cost-analyzer
+                port:
+                  number: 9090
+EOT
+
+kubectl apply -f kubecost-ingress.yaml
+
+echo "--------------------------------------------------------"
+echo "✅ team-${TEAM_NUMBER} Kubecost 배포 완료!"
+echo "💡 확인: kubectl get pvc -n kubecost"
+echo "--------------------------------------------------------"
+EOF
+
+chmod +x 08_install_kubecost.sh
+./08_install_kubecost.sha
