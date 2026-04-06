@@ -78,6 +78,13 @@ spec:
         image: nginx:latest
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
         command: ["/bin/sh", "-c"]
         args:
           - |
@@ -102,6 +109,13 @@ spec:
       # [2] 로그 수집 사이드카 (변화 없음)
       - name: log-sidecar
         image: busybox:latest
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
         command: ["sh", "-c", "mkdir -p /var/log/app && touch /var/log/app/access.log && tail -f /var/log/app/access.log"]
         volumeMounts:
         - name: log-storage
