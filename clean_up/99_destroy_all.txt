@@ -1,0 +1,93 @@
+cat << 'EOF' > 99_destroy_all.sh
+#!/bin/bash
+set -x
+
+# [확인 절차 추가] [cite: 2026-04-06]
+read -p "❓ 정말로 모든 인프라를 삭제하시겠습니까? (y/n): " CONFIRM
+if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
+    echo "❌ 삭제가 취소되었습니다. 데이터를 안전하게 보존합니다."
+    exit 0
+fi
+
+# 1. 환경 변수 로드 [cite: 1]
+source ./env_config.sh || exit 1
+
+echo "================================================="
+echo "▶ [START] 전체 인프라 및 애플리케이션 삭제 시작 (최종판)"
+echo "================================================="
+
+# --------------------------------------------------------
+# [Step 1] 외부 노출 리소스(ALB) 최우선 삭제
+# --------------------------------------------------------
+# 보안 그룹(SG) 에러를 방지하기 위해 Ingress를 가장 먼저 지워야 해.
+echo ">> [1/7] Deleting Ingress (ALB) to release Network Interfaces..."
+kubectl delete ingress --all -A --ignore-not-found
+
+# AWS 로드밸런서가 물리적으로 철거될 시간을 충분히 줘.
+echo "⏳ 로드밸런서(ALB) 철거 대기 중 (120s)..."
+sleep 120
+
+# --------------------------------------------------------
+# [Step 2] 네임스페이스 강제 패치 및 삭제
+# --------------------------------------------------------
+echo ">> [2/7] Force Patching and Deleting Namespaces..."
+# ArgoCD가 있다면 먼저 삭제 시도
+kubectl delete -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --ignore-not-found
+
+for ns in dev stg prod monitoring kubecost argocd karpenter; do 
+  echo "🛠️ Patching finalizers for namespace: $ns"
+  # 좀비 네임스페이스 방지를 위한 강제 패치
+  kubectl patch namespace $ns -p '{"metadata":{"finalizers":null}}' --type=merge --ignore-not-found
+  kubectl delete namespace $ns --ignore-not-found
+done
+
+# --------------------------------------------------------
+# [Step 3] 모니터링 및 비용 관리 툴 삭제
+# --------------------------------------------------------
+echo ">> [3/7] Uninstalling Helm Releases (Monitoring & Kubecost)..."
+helm uninstall monitoring-stack -n monitoring --ignore-not-found
+helm uninstall kubecost -n kubecost --ignore-not-found
+
+# --------------------------------------------------------
+# [Step 4] 오토스케일링 자원 삭제
+# --------------------------------------------------------
+echo ">> [4/7] Deleting Scaling Resources (Karpenter & HPA)..."
+kubectl delete hpa --all -A --ignore-not-found
+kubectl delete nodepool default --ignore-not-found
+kubectl delete ec2nodeclass default --ignore-not-found
+
+# --------------------------------------------------------
+# [Step 5] 핵심 컨트롤러 및 IAM 권한(IRSA) 회수
+# --------------------------------------------------------
+echo ">> [5/7] Uninstalling Controllers and Deleting IRSA..."
+helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found
+helm uninstall karpenter -n karpenter --ignore-not-found
+
+# IRSA 삭제 (실패해도 중단되지 않도록 처리)
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name aws-load-balancer-controller --namespace kube-system --wait || true
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name karpenter --namespace karpenter --wait || true
+eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name ebs-csi-controller-sa --namespace kube-system --wait || true
+
+# --------------------------------------------------------
+# [Step 6] 데이터베이스(RDS) 삭제
+# --------------------------------------------------------
+echo ">> [6/7] Deleting RDS Instance..."
+aws rds delete-db-instance \
+    --db-instance-identifier ${SERVICE_NAME}-db \
+    --skip-final-snapshot \
+    --delete-automated-backups
+
+# --------------------------------------------------------
+# [Step 7] EKS 클러스터 최종 철거
+# --------------------------------------------------------
+echo ">> [7/7] Final EKS Cluster Destruction..."
+eksctl delete cluster --name $CLUSTER_NAME --region $AWS_REGION --wait
+
+set +x
+echo "================================================="
+echo "🎉 모든 인프라가 깔끔하게 정리되었습니다!"
+echo "💡 완전히 삭제되었는지 destroy_all.md를 확인해주세요."
+echo "================================================="
+EOF
+
+chmod +x 99_destroy_all.sh
