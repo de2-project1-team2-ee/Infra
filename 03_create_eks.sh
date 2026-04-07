@@ -41,8 +41,8 @@ vpc:
         id: ${APP_SUBNET_2}
 
 managedNodeGroups:
-  - name: m7i-flex-large-nodes-nodegroup
-    instanceType: m7i-flex.large
+  - name: t3-medium-nodes-nodegroup
+    instanceType: t3.medium
     desiredCapacity: 2
     volumeSize: 20
     privateNetworking: true
