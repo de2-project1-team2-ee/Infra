@@ -45,6 +45,32 @@ else
         read -p "🎫 쿠폰 총 수량을 입력해주세요 (기본값: 30000): " COUPON_TOTAL
         export COUPON_TOTAL=${COUPON_TOTAL:-30000}
     fi
+
+    # 7. GitHub 인증 설정 (06, 07에서 git clone/push 시 사용)
+    if [ -z "$GIT_USER" ]; then
+        echo "--------------------------------------------------------"
+        echo "🔐 GitHub 인증 설정 (manifests 레포 push용)"
+        echo "--------------------------------------------------------"
+        while true; do
+            read -p "👤 GitHub Username 또는 Email: " GIT_USER
+            read -sp "🔑 GitHub PAT (Personal Access Token): " GIT_PAT
+            echo
+            # 검증: manifests 레포 접근 테스트
+            if git ls-remote https://${GIT_USER}:${GIT_PAT}@github.com/de2-project1-team2-ee/manifests.git HEAD &>/dev/null; then
+                echo "✅ GitHub 인증 성공!"
+                export GIT_USER
+                export GIT_PAT
+                git config --global credential.helper store
+                echo "https://${GIT_USER}:${GIT_PAT}@github.com" > ~/.git-credentials
+                git config --global user.name "$GIT_USER"
+                git config --global user.email "${GIT_USER}@users.noreply.github.com"
+                break
+            else
+                echo "❌ 인증 실패! Username 또는 PAT를 확인해주세요."
+                echo "   다시 입력합니다..."
+            fi
+        done
+    fi
     # [기존 로드 로직 끝]
 
     # ✅ 최종 검증: 로드 후에도 값이 없으면 에러 처리 [cite: 2026-04-05]
