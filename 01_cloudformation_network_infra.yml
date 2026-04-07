@@ -170,6 +170,7 @@ Resources:
       VpcId: !Ref MainVPC
       # 팀 /20 대역 중 1번째 /22 조각 (이미지에서 .4.0 지점)
       CidrBlock: !Select [ 1, !Cidr [ !Ref VPCCidr, 4, 10 ] ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
       Tags:
         - Key: Name
           Value: !Sub "${ServiceName}-team-${TeamNumber}-app-a"
