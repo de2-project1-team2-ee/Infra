@@ -39,6 +39,12 @@ else
     # 5. 기타 클러스터 정보 [cite: 2026-04-04]
     export CLUSTER_NAME="${SERVICE_NAME}-team-${TEAM_NUMBER}-cluster"
     export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+
+    # 6. 쿠폰 총 수량 입력
+    if [ -z "$COUPON_TOTAL" ]; then
+        read -p "🎫 쿠폰 총 수량을 입력해주세요 (기본값: 30000): " COUPON_TOTAL
+        export COUPON_TOTAL=${COUPON_TOTAL:-30000}
+    fi
     # [기존 로드 로직 끝]
 
     # ✅ 최종 검증: 로드 후에도 값이 없으면 에러 처리 [cite: 2026-04-05]

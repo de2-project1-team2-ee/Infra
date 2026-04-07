@@ -16,9 +16,10 @@ eksctl utils associate-iam-oidc-provider \
     --approve
 
 # 1-1. IAM Policy 생성 (이미 있으면 건너뜀) [cite: 2026-04-04]
+curl -o /tmp/iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json
 aws iam create-policy \
     --policy-name AWSLoadBalancerControllerIAMPolicy \
-    --policy-document https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json 2>/dev/null || echo "ℹ️ Policy already exists."
+    --policy-document file:///tmp/iam_policy.json 2>/dev/null || echo "ℹ️ Policy already exists."
 
 # 1-2. Service Account 생성 [cite: 2026-04-04]
 eksctl create iamserviceaccount \
@@ -62,15 +63,19 @@ echo "--------------------------------------------------------"
 # 3-1. 06에서 클론한 manifests 레포 최신화
 cd /tmp/manifests && git pull && cd ~
 
-# 3-2. deployment.example.yaml 기반으로 deployment.yaml 초기 생성
-cp /tmp/manifests/deployment.example.yaml /tmp/manifests/k8s/deployment.yaml
-sed -i "s|__AWS_ACCOUNT_ID__|${AWS_ACCOUNT_ID}|g" /tmp/manifests/k8s/deployment.yaml
-sed -i "s|__AWS_REGION__|${AWS_REGION}|g" /tmp/manifests/k8s/deployment.yaml
-sed -i "s|__IMAGE_TAG__|latest|g" /tmp/manifests/k8s/deployment.yaml
+# 3-2. 템플릿에서 k8s/ 매니페스트 생성 (deployment, service, hpa)
+for FILE in deployment.yaml service.yaml hpa.yaml; do
+  cp /tmp/manifests/templates/$FILE /tmp/manifests/k8s/$FILE
+  sed -i "s|__NAMESPACE__|dev|g" /tmp/manifests/k8s/$FILE
+  sed -i "s|__AWS_ACCOUNT_ID__|${AWS_ACCOUNT_ID}|g" /tmp/manifests/k8s/$FILE
+  sed -i "s|__AWS_REGION__|${AWS_REGION}|g" /tmp/manifests/k8s/$FILE
+  sed -i "s|__IMAGE_TAG__|latest|g" /tmp/manifests/k8s/$FILE
+  sed -i "s|__COUPON_TOTAL__|${COUPON_TOTAL}|g" /tmp/manifests/k8s/$FILE
+done
 
 cd /tmp/manifests
-git add k8s/deployment.yaml
-git commit -m "chore: initialize deployment.yaml from example [skip ci]" || echo "ℹ️ No changes to commit."
+git add k8s/
+git commit -m "chore: generate k8s manifests from templates [skip ci]" || echo "ℹ️ No changes to commit."
 git push
 cd ~
 
@@ -79,6 +84,26 @@ kubectl apply -f /tmp/manifests/cicd/argocd-install.yaml
 
 # 3-3. ArgoCD Application 등록 (manifests 레포 k8s/ 폴더 자동 감시 + 배포)
 kubectl apply -f /tmp/manifests/cicd/argocd-app.yaml
+
+echo "--------------------------------------------------------"
+echo "🔧 [Step 4] GitHub Actions CI 변수 자동 등록"
+echo "--------------------------------------------------------"
+
+APP_REPO="de2-project1-team2-ee/app"
+MANIFESTS_REPO="de2-project1-team2-ee/manifests"
+
+# Variables (공개 값)
+gh variable set AWS_ACCOUNT_ID --body "$AWS_ACCOUNT_ID" --repo "$APP_REPO"
+gh variable set AWS_REGION --body "$AWS_REGION" --repo "$APP_REPO"
+gh variable set ECR_REPOSITORY --body "project-app" --repo "$APP_REPO"
+gh variable set MANIFESTS_REPO --body "$MANIFESTS_REPO" --repo "$APP_REPO"
+
+# Secret (PAT 입력)
+read -sp "🔑 GitHub PAT를 입력해주세요 (manifests repo push용): " GH_PAT
+echo
+gh secret set MANIFESTS_TOKEN --body "$GH_PAT" --repo "$APP_REPO"
+
+echo "✅ GitHub Actions 변수 등록 완료!"
 
 echo "--------------------------------------------------------"
 echo "✅ ArgoCD CI/CD 배포 완료!"

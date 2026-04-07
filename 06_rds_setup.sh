@@ -100,28 +100,11 @@ echo "--------------------------------------------------------"
 git clone https://github.com/de2-project1-team2-ee/manifests.git /tmp/manifests 2>/dev/null \
   || (cd /tmp/manifests && git pull)
 
-# rds-secret.yaml 생성
-cat > /tmp/manifests/k8s/rds-secret.yaml << INNER_EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rds-config
-  namespace: project
-data:
-  DB_HOST: "${DB_ENDPOINT}"
-  DB_PORT: "5432"
-  DB_NAME: "${SERVICE_NAME}db"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: rds-secret
-  namespace: project
-type: Opaque
-stringData:
-  DB_USER: "appuser"
-  DB_PASSWORD: "Password123!"
-INNER_EOF
+# 템플릿에서 rds-secret.yaml 생성
+cp /tmp/manifests/templates/rds-secret.yaml /tmp/manifests/k8s/rds-secret.yaml
+sed -i "s|__NAMESPACE__|dev|g" /tmp/manifests/k8s/rds-secret.yaml
+sed -i "s|__DB_ENDPOINT__|${DB_ENDPOINT}|g" /tmp/manifests/k8s/rds-secret.yaml
+sed -i "s|__DB_NAME__|${SERVICE_NAME}db|g" /tmp/manifests/k8s/rds-secret.yaml
 
 cd /tmp/manifests || exit 1
 git add k8s/rds-secret.yaml
