@@ -350,3 +350,8 @@ Outputs:
     Value: !Ref TeamNumber
     Export:
       Name: !Sub "${ServiceName}-team-number"
+  ExportRegion:
+    Description: "The region where this infrastructure is deployed"
+    Value: !Ref "AWS::Region"
+    Export:
+      Name: !Sub "${ServiceName}-team-${TeamNumber}-region"
