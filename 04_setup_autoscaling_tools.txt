@@ -23,7 +23,10 @@ fi
 NODE_ROLE_ARN=$(aws eks describe-nodegroup --cluster-name ${CLUSTER_NAME} --nodegroup-name ${AUTO_NODEGROUP_NAME} --region ${AWS_REGION} --query "nodegroup.nodeRole" --output text)
 NODE_ROLE_NAME=$(echo $NODE_ROLE_ARN | cut -d'/' -f2)
 
-NODE_SG_ID=$(aws ec2 describe-security-groups --filters Name=tag:alpha.eksctl.io/cluster-name,Values=$CLUSTER_NAME Name=group-name,Values="*ClusterSharedNodeSecurityGroup*" --query "SecurityGroups[0].GroupId" --output text)
+# 노드 공유 보안 그룹 ID 추출 (4443 포트용)
+NODE_SG_ID=$(aws ec2 describe-instances \
+  --filters Name=tag:eks:cluster-name,Values=$CLUSTER_NAME \
+  --query "Reservations[0].Instances[0].SecurityGroups[0].GroupId" --output text)
 
 echo "🔑 Target Node Role: $NODE_ROLE_NAME"
 echo "🛡️ Target Node Security Group: $NODE_SG_ID"
