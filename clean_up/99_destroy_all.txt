@@ -96,3 +96,4 @@ echo "================================================="
 EOF
 
 chmod +x 99_destroy_all.sh
+./99_destroy_all.sh
