@@ -5,6 +5,11 @@ cat << 'EOF' > 07_deploy_app.sh
 source ./env_config.sh || exit 1
 
 echo "--------------------------------------------------------"
+echo "📦 [Step 0] ECR 레포지토리 생성"
+echo "--------------------------------------------------------"
+aws ecr create-repository --repository-name project-app --region $AWS_REGION 2>/dev/null || echo "ℹ️ ECR repository already exists."
+
+echo "--------------------------------------------------------"
 echo "🏗️  [Step 1] ALB Controller IAM & Helm Setup"
 echo "--------------------------------------------------------"
 
@@ -84,26 +89,6 @@ kubectl apply -f /tmp/manifests/cicd/argocd-install.yaml
 
 # 3-3. ArgoCD Application 등록 (manifests 레포 k8s/ 폴더 자동 감시 + 배포)
 kubectl apply -f /tmp/manifests/cicd/argocd-app.yaml
-
-echo "--------------------------------------------------------"
-echo "🔧 [Step 4] GitHub Actions CI 변수 자동 등록"
-echo "--------------------------------------------------------"
-
-APP_REPO="de2-project1-team2-ee/app"
-MANIFESTS_REPO="de2-project1-team2-ee/manifests"
-
-# Variables (공개 값)
-gh variable set AWS_ACCOUNT_ID --body "$AWS_ACCOUNT_ID" --repo "$APP_REPO"
-gh variable set AWS_REGION --body "$AWS_REGION" --repo "$APP_REPO"
-gh variable set ECR_REPOSITORY --body "project-app" --repo "$APP_REPO"
-gh variable set MANIFESTS_REPO --body "$MANIFESTS_REPO" --repo "$APP_REPO"
-
-# Secret (PAT 입력)
-read -sp "🔑 GitHub PAT를 입력해주세요 (manifests repo push용): " GH_PAT
-echo
-gh secret set MANIFESTS_TOKEN --body "$GH_PAT" --repo "$APP_REPO"
-
-echo "✅ GitHub Actions 변수 등록 완료!"
 
 echo "--------------------------------------------------------"
 echo "✅ ArgoCD CI/CD 배포 완료!"
