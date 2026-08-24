@@ -1,7 +1,7 @@
 cat << 'EOF' > 06.rds_setup.sh
 #!/bin/bash
 
-# 1. 공통 환경 변수 로드 (VPC, ClusterName 등) [cite: 2026-04-04]
+# 1. 공통 환경 변수 로드 (VPC, ClusterName 등)
 source ./env_config.sh || exit 1
 
 echo "--------------------------------------------------------"
@@ -23,13 +23,13 @@ echo "--------------------------------------------------------"
 echo "💎 [Step 2] RDS 리소스 프로비저닝"
 echo "--------------------------------------------------------"
 
-# 서브넷 그룹 (이미 만들어졌으니 에러 메시지 무시용 2>/dev/null) [cite: 2026-04-04]
+# 서브넷 그룹 (이미 만들어졌으니 에러 메시지 무시용 2>/dev/null)
 aws rds create-db-subnet-group \
     --db-subnet-group-name ${SERVICE_NAME}-rds-sng \
     --db-subnet-group-description "Subnet group for ${SERVICE_NAME} RDS" \
     --subnet-ids "$DB_SUBNET_1" "$DB_SUBNET_2" 2>/dev/null || echo "ℹ️ Subnet Group already exists."
 
-# 1. RDS 보안 그룹 생성 (이미 존재하면 ID만 가져옴) [cite: 2026-04-04]
+# 1. RDS 보안 그룹 생성 (이미 존재하면 ID만 가져옴)
 RDS_SG_ID=$(aws ec2 describe-security-groups --filters Name=group-name,Values=${SERVICE_NAME}-rds-sg --query "SecurityGroups[0].GroupId" --output text)
 
 if [ "$RDS_SG_ID" == "None" ] || [ -z "$RDS_SG_ID" ]; then
@@ -39,19 +39,23 @@ if [ "$RDS_SG_ID" == "None" ] || [ -z "$RDS_SG_ID" ]; then
         --vpc-id $VPC_ID --output text --query 'GroupId')
 fi
 
-# 2. EKS 노드 그룹 보안 그룹 허용 (기존 로직) [cite: 2026-04-04]
+# 2. EKS 노드 그룹 보안 그룹 허용 (기존 로직)
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SG_ID \
     --protocol tcp \
     --port 5432 \
     --source-group $NODE_SG_ID 2>/dev/null || echo "ℹ️ Node SG rule already exists."
 
-# 3. [추가] 배스천 호스트 보안 그룹 허용 (임시 오픈) [cite: 2026-04-04]
-BASTION_SG_ID=$(aws ec2 describe-instances \
-    --filters Name=tag:Name,Values="*bastion*" \
-    --query "Reservations[0].Instances[0].SecurityGroups[0].GroupId" --output text)
+# 3. [추가] 배스천 호스트 보안 그룹 허용 (임시 오픈)
+# 02번 스택이 붙인 Name 태그와 VPC로 한정한다.
+# *bastion* 와일드카드만으로 조회하면 계정 안의 다른 팀 배스천을 잡아
+# 엉뚱한 보안 그룹에 DB 접근 권한을 열어줄 수 있다.
+BASTION_SG_ID=$(aws ec2 describe-security-groups \
+    --filters Name=vpc-id,Values=$VPC_ID \
+              Name=tag:Name,Values="${SERVICE_NAME}-team-${TEAM_NUMBER}-bastion-sg" \
+    --query "SecurityGroups[0].GroupId" --output text)
 
-if [ "$BASTION_SG_ID" != "None" ]; then
+if [ "$BASTION_SG_ID" != "None" ] && [ -n "$BASTION_SG_ID" ]; then
     aws ec2 authorize-security-group-ingress \
         --group-id $RDS_SG_ID \
         --protocol tcp \
@@ -62,14 +66,17 @@ fi
 
 echo "✅ 보안 그룹 준비 완료: $RDS_SG_ID"
 
-# RDS 인스턴스 생성 (옵션명 수정: --no-publicly-accessible) [cite: 2026-04-04]
+# RDS 인스턴스 생성 (옵션명 수정: --no-publicly-accessible)
+# 마스터 비밀번호는 저장소에 남기지 않고 실행 시점의 환경 변수로 주입한다.
+# 미설정 시 ':?' 확장으로 즉시 실패하므로, 약한 기본값으로 DB가 만들어지는 일이 없다.
+#   설정 예) read -rsp "DB 마스터 비밀번호: " DB_PASSWORD; export DB_PASSWORD
 aws rds create-db-instance \
     --db-instance-identifier ${SERVICE_NAME}-db \
     --db-instance-class db.t3.small \
     --engine postgres \
     --engine-version "17.6" \
     --master-username appuser \
-    --master-user-password "Password123!" \
+    --master-user-password "${DB_PASSWORD:?DB_PASSWORD 환경변수 필요}" \
     --allocated-storage 20 \
     --db-subnet-group-name ${SERVICE_NAME}-rds-sng \
     --vpc-security-group-ids $RDS_SG_ID \

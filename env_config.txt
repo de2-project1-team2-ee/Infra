@@ -1,42 +1,42 @@
 cat << 'EOF' > env_config.sh
 #!/bin/bash
 
-# 1. 체크 로직: 필수 변수가 이미 로드되어 있는지 확인 [cite: 2026-04-05]
+# 1. 체크 로직: 필수 변수가 이미 로드되어 있는지 확인
 if [ -n "$CLUSTER_NAME" ] && [ -n "$VPC_ID" ]; then
-    echo "ℹ️  환경 변수가 이미 로드되어 있습니다. (Cluster: $CLUSTER_NAME)" [cite: 2026-04-05]
+    echo "ℹ️  환경 변수가 이미 로드되어 있습니다. (Cluster: $CLUSTER_NAME)"
 else
-    echo "🌐 환경 변수를 새로 로드합니다..." [cite: 2026-04-05]
+    echo "🌐 환경 변수를 새로 로드합니다..."
 
     # [기존 로드 로직 시작]
     export NET_STACK_NAME="nat-stack"
     
-    # 1. 리전 입력 받기 (한 번도 안 받았을 때만) [cite: 2026-02-14]
+    # 1. 리전 입력 받기 (한 번도 안 받았을 때만)
     if [ -z "$INPUT_REGION" ]; then
         read -p "📍 리전을 입력해주세요 (예: ap-northeast-2): " INPUT_REGION
         export INPUT_REGION
     fi
 
     # ... (리전 입력 로직 이후)
-    export AWS_REGION=$INPUT_REGION # 변수 통합 [cite: 2026-04-05]
+    export AWS_REGION=$INPUT_REGION # 변수 통합
 
-    # 1번 스택에서 모든 정보 추출 (변수명 일치화) [cite: 2026-04-05]
+    # 1번 스택에서 모든 정보 추출 (변수명 일치화)
     export VPC_ID=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportVpcId'].OutputValue" --output text)
     export SERVICE_NAME=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportServiceName'].OutputValue" --output text)
     export TEAM_NUMBER=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportTeamNumber'].OutputValue" --output text)
 
-    # Public Subnets (03번 필수) [cite: 2026-04-05]
+    # Public Subnets (03번 필수)
     export PUB_SUBNET_A=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportPublicSubnetA'].OutputValue" --output text)
     export PUB_SUBNET_B=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportPublicSubnetB'].OutputValue" --output text)
 
-    # App Subnets (03번 필수) [cite: 2026-04-05]
+    # App Subnets (03번 필수)
     export APP_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportAppSubnetA'].OutputValue" --output text)
     export APP_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportAppSubnetB'].OutputValue" --output text)
 
-    # DB Subnets (05번 필수) [cite: 2026-04-05]
+    # DB Subnets (05번 필수)
     export DB_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportDBSubnetA'].OutputValue" --output text)
     export DB_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $NET_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ExportDBSubnetB'].OutputValue" --output text)
 
-    # 5. 기타 클러스터 정보 [cite: 2026-04-04]
+    # 5. 기타 클러스터 정보
     export CLUSTER_NAME="${SERVICE_NAME}-team-${TEAM_NUMBER}-cluster"
     export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 
@@ -55,13 +55,26 @@ else
             read -p "👤 GitHub Username 또는 Email: " GIT_USER
             read -sp "🔑 GitHub PAT (Personal Access Token): " GIT_PAT
             echo
+            export GIT_USER GIT_PAT
+
+            # PAT는 git에 askpass 헬퍼를 통해 전달한다.
+            # URL에 직접 넣으면 ps 출력과 .git/config에 평문으로 남고,
+            # credential.helper store를 쓰면 ~/.git-credentials에 평문으로 저장된다.
+            # 헬퍼 파일 자체에는 비밀 값이 없고, 실행 시점의 환경 변수만 읽어 넘긴다.
+            cat << 'ASKPASS' > ~/.git-askpass-helper
+#!/bin/bash
+case "$1" in
+    *[Uu]sername*) printf '%s' "${GIT_USER}" ;;
+    *)             printf '%s' "${GIT_PAT}" ;;
+esac
+ASKPASS
+            chmod 700 ~/.git-askpass-helper
+            export GIT_ASKPASS=~/.git-askpass-helper
+            export GIT_TERMINAL_PROMPT=0
+
             # 검증: manifests 레포 접근 테스트
-            if git ls-remote https://${GIT_USER}:${GIT_PAT}@github.com/de2-project1-team2-ee/manifests.git HEAD &>/dev/null; then
+            if git ls-remote https://github.com/de2-project1-team2-ee/manifests.git HEAD &>/dev/null; then
                 echo "✅ GitHub 인증 성공!"
-                export GIT_USER
-                export GIT_PAT
-                git config --global credential.helper store
-                echo "https://${GIT_USER}:${GIT_PAT}@github.com" > ~/.git-credentials
                 git config --global user.name "$GIT_USER"
                 git config --global user.email "${GIT_USER}@users.noreply.github.com"
                 break
@@ -73,12 +86,12 @@ else
     fi
     # [기존 로드 로직 끝]
 
-    # ✅ 최종 검증: 로드 후에도 값이 없으면 에러 처리 [cite: 2026-04-05]
+    # ✅ 최종 검증: 로드 후에도 값이 없으면 에러 처리
     if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
-        echo "❌ 에러: 스택($NET_STACK_NAME)에서 정보를 가져오지 못했습니다." [cite: 2026-04-05]
+        echo "❌ 에러: 스택($NET_STACK_NAME)에서 정보를 가져오지 못했습니다."
         return 1 2>/dev/null || exit 1
     fi
-    echo "✅ 환경 변수 로드 완료!" [cite: 2026-04-05]
+    echo "✅ 환경 변수 로드 완료!"
     echo "--------------------------------------------------------"
     echo "✅ CloudFormation Stack($NET_STACK_NAME)에서 변수를 자동 로드했습니다."
     echo "🏢 VPC: $VPC_ID"
