@@ -14,24 +14,26 @@ CloudFormation 스택의 Output을 후속 스크립트가 자동으로 읽어가
 
 ## 담당 범위
 
-여러 명이 함께 구성한 저장소이므로, 파일 단위로 작성자를 명시합니다.
+여러 명이 함께 구성한 저장소입니다. 아래 표는 `git blame` 기준 라인 수로,
+파일별 주 작성자와 공동 작업 범위를 있는 그대로 정리한 것입니다.
 
-| 파일 | 역할 | 작성 |
-| --- | --- | --- |
-| `01_cloudformation_network_infra.yml` | VPC, 서브넷, NAT, IGW, 라우팅 | 본인 |
-| `02_cloudformation_bastion-EC2.yml` | 배스천 EC2, 보안 그룹, IAM, 도구 자동 설치 | 본인 |
-| `env_config.txt` | 스택 Output 기반 공통 환경 변수 로더 | 본인 |
-| `03_create_eks.sh` | EKS 클러스터 생성 (eksctl) | 본인 |
-| `04_setup_autoscaling_tools.txt` | Karpenter, Metrics Server 설치 | << GitHub 핸들 >> |
-| `05_create_namespaces.sh` | 네임스페이스 및 라벨 구성 | 본인 |
-| `06_rds_setup.sh` | RDS(PostgreSQL) 프로비저닝 및 보안 그룹 연결 | 본인 |
-| `07_deploy_app.txt` | ALB 컨트롤러, ArgoCD, 애플리케이션 배포 | 본인 |
-| `08_monitoring.txt` | Prometheus / Grafana Ingress 구성 | << GitHub 핸들 >> |
-| `10_install_kubecost.txt` | EBS CSI Driver, Kubecost 설치 | 본인 |
-| `scripts/teardown/` | 전체 리소스 삭제 및 확인 절차 | 본인 |
-| `v2.0/` | 기존 VPC 재사용 + 팀별 CIDR 자동 분할 개선안 (작업 중) | 본인 |
+| 파일 | 역할 | 주 작성 | 공동 작업 |
+| --- | --- | --- | --- |
+| `01_cloudformation_network_infra.yml` | VPC, 서브넷, NAT, IGW, 라우팅 | @silver-ring-data (358) | — |
+| `02_cloudformation_bastion-EC2.yml` | 배스천 EC2, 보안 그룹, IAM, 도구 자동 설치 | @silver-ring-data (139) | @codingpoppy94 (6) |
+| `env_config.txt` | 스택 Output 기반 공통 환경 변수 로더 | @silver-ring-data (61) | @codingpoppy94 (32) — GitHub 인증 블록 |
+| `03_create_eks.sh` | EKS 클러스터 생성 (eksctl) | @silver-ring-data (69) | — |
+| `04_setup_autoscaling_tools.txt` | Karpenter, Metrics Server, 모니터링 스택 설치 | @silver-ring-data (92) — Karpenter, IAM, discovery 태그 | @olevl9e (24) — metrics-server Helm 전환, kube-prometheus-stack 추가 / @codingpoppy94 (3) |
+| `05_create_namespaces.sh` | 네임스페이스 및 라벨 구성 | @silver-ring-data (61) | — |
+| `06_rds_setup.sh` | RDS(PostgreSQL) 프로비저닝 및 보안 그룹 연결 | @silver-ring-data (73) | @codingpoppy94 (47) — manifests 저장소 연동 |
+| `07_deploy_app.txt` | ALB 컨트롤러, ArgoCD, 애플리케이션 배포 | @codingpoppy94 (59) — ArgoCD CI/CD | @silver-ring-data (52) — ALB 컨트롤러 / @olevl9e (1) |
+| `08_monitoring.txt` | Prometheus / Grafana Ingress 구성 | @olevl9e (18) | — |
+| `10_install_kubecost.txt` | EBS CSI Driver, Kubecost 설치 | @silver-ring-data (104) | — |
+| `scripts/teardown/` | 전체 리소스 삭제 및 확인 절차 | @silver-ring-data | — |
+| `v2.0/` | 기존 VPC 재사용 + 팀별 CIDR 자동 분할 개선안 (작업 중) | @silver-ring-data (384) | — |
 
-> 04번과 08번은 다른 팀원이 작성한 파일이므로, 이 저장소에서는 원본을 그대로 유지합니다.
+> `08_monitoring.txt` 는 전적으로 다른 팀원이 작성한 파일이므로 원본을 그대로 유지합니다.
+> 그 외 파일의 정리 작업(주석 정리, 보안 수정)은 저장소 소유자가 수행했습니다.
 
 ---
 
