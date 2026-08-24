@@ -2,9 +2,9 @@ cat << 'EOF' > 03_create_eks.sh
 #!/bin/bash
 
 # --------------------------------------------------------
-# 0. 환경 변수 로드 및 검증 (Idempotent Loader 활용) [cite: 2026-04-05]
+# 0. 환경 변수 로드 및 검증 (Idempotent Loader 활용)
 # --------------------------------------------------------
-# env_config.sh가 없거나 실행에 실패하면 즉시 종료 [cite: 2026-04-05]
+# env_config.sh가 없거나 실행에 실패하면 즉시 종료
 source ./env_config.sh || exit 1
 
 echo "--------------------------------------------------------"
@@ -15,7 +15,7 @@ echo "📍 Region: $INPUT_REGION"
 echo "--------------------------------------------------------"
 
 # --------------------------------------------------------
-# 1. cluster.yaml Generation (EKS Version 1.34) [cite: 2026-04-03]
+# 1. cluster.yaml Generation (EKS Version 1.34)
 # --------------------------------------------------------
 cat << INNER_EOF > cluster.yaml
 apiVersion: eksctl.io/v1alpha5
@@ -59,7 +59,7 @@ cloudWatch:
 INNER_EOF
 
 # --------------------------------------------------------
-# 2. Execute EKS Creation [cite: 2026-04-05]
+# 2. Execute EKS Creation
 # --------------------------------------------------------
 echo "🏗️  Executing eksctl create cluster... (Takes approx. 15-20 mins)"
 eksctl create cluster -f cluster.yaml

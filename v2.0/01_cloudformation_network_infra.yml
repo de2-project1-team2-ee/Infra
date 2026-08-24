@@ -93,7 +93,7 @@ Parameters:
     Description: "Number of /24 slots available within a /20 block."
 
 Conditions:
-  # Check if a new VPC should be created [cite: 2026-02-14]
+  # Check if a new VPC should be created
   CreateNewVPC: !Equals [ !Ref ExistingVpcId, "" ] # 빈칸이면 vpc 생성
   
 
@@ -131,12 +131,14 @@ Resources:
   NatEIPA:
     Type: AWS::EC2::EIP
     Condition: CreateNewVPC # 새로 만들 때만 생성
-    DependsOn: AttachGateway # 이제 단순 문자열로 써도 에러가 안 나!
+    # IGW 연결이 끝난 뒤에 EIP를 할당해야 하므로 명시적으로 의존성을 건다.
+    DependsOn: AttachGateway
     Properties: { Domain: vpc }
 
   NatGatewayA:
     Type: AWS::EC2::NatGateway
-    Condition: CreateNewVPC # 이것도 세트로 묶어줘
+    # NAT 게이트웨이는 EIP와 한 쌍이므로 생성 조건을 동일하게 맞춘다.
+    Condition: CreateNewVPC
     Properties:
       AllocationId: !GetAtt NatEIPA.AllocationId
       SubnetId: !Ref TeamPublicSubnetA
@@ -362,7 +364,7 @@ Outputs:
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-app-b"
 
-  # --- [추가된 부분: RDS 스크립트 연동용] --- [cite: 2026-04-04]
+  # --- [추가된 부분: RDS 스크립트 연동용] ---
   ExportDBSubnetA:
     Value: !Ref TeamDBSubnetA
     Export:
@@ -372,7 +374,7 @@ Outputs:
     Export:
       Name: !Sub "${ServiceName}-team-${TeamNumber}-db-b"
 
-  # 4. 서비스 정보 (순수 값만 추출하기 위한 통로) [cite: 2026-02-14]
+  # 4. 서비스 정보 (순수 값만 추출하기 위한 통로)
   ExportServiceName:
     Value: !Ref ServiceName
     Export:

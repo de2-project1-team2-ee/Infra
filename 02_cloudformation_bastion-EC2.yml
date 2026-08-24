@@ -75,7 +75,7 @@ Resources:
         - Key: "karpenter.sh/discovery"
           Value: !Sub "${ServiceName}-team-${TeamNumber}-cluster"
 
-  # 2. IAM Role (AdministratorAccess for lab purposes as previously agreed)
+  # 2. IAM Role (AdministratorAccess for lab purposes)
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -87,7 +87,8 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # 은비의 원활한 실습을 위해 관리자 권한을 유지했어.
+        # 실습 환경이라 관리자 권한을 유지한다. eksctl 이 EKS/IAM/CloudFormation 을 모두 다루기 때문이다.
+        # 운영 환경에서는 EC2/CloudFormation/RDS/ECR 범위의 최소 권한으로 대체해야 한다. (README 개선 과제 참고)
         - arn:aws:iam::aws:policy/AdministratorAccess
       Path: /
 

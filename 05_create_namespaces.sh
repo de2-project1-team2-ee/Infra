@@ -1,15 +1,15 @@
-# 1. 파일 생성 (cat 사용) [cite: 2026-02-14]
+# 1. 파일 생성 (cat 사용)
 cat << 'EOF' > 05_create_namespaces.sh
 #!/bin/bash
 
-# 환경 변수 체크 로직 [cite: 2026-01-23]
+# 환경 변수 체크 로직
 source ./env_config.sh || exit 1
 
 echo "--------------------------------------------------------"
 echo "🏗️ Creating Namespaces for $SERVICE_NAME (Team $TEAM_NUMBER)"
 echo "--------------------------------------------------------"
 
-# 템플릿 생성 [cite: 2026-02-14]
+# 템플릿 생성
 cat << 'INNER_EOF' > 05_create_namespaces.yaml
 apiVersion: v1
 kind: Namespace
@@ -49,7 +49,7 @@ metadata:
     env: infra
 INNER_EOF
 
-# 배포 [cite: 2026-02-14]
+# 배포
 envsubst < 05_create_namespaces.yaml | kubectl apply -f -
 
 echo "✅ Namespaces created successfully:"
