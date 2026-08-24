@@ -1,15 +1,17 @@
 cat << 'EOF' > 99_destroy_all.sh
 #!/bin/bash
+# 실행되는 명령을 그대로 출력한다. 삭제 실패 지점을 찾기 위한 것이므로,
+# 비밀 값을 다루는 명령을 추가할 때는 해당 구간에서 set +x 로 감싼다.
 set -x
 
-# [확인 절차 추가] [cite: 2026-04-06]
+# [확인 절차 추가]
 read -p "❓ 정말로 모든 인프라를 삭제하시겠습니까? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
     echo "❌ 삭제가 취소되었습니다. 데이터를 안전하게 보존합니다."
     exit 0
 fi
 
-# 1. 환경 변수 로드 [cite: 1]
+# 1. 환경 변수 로드
 source ./env_config.sh || exit 1
 
 echo "================================================="
@@ -19,11 +21,11 @@ echo "================================================="
 # --------------------------------------------------------
 # [Step 1] 외부 노출 리소스(ALB) 최우선 삭제
 # --------------------------------------------------------
-# 보안 그룹(SG) 에러를 방지하기 위해 Ingress를 가장 먼저 지워야 해.
+# ALB가 남아 있으면 보안 그룹이 ENI에 묶여 삭제가 실패한다. Ingress를 가장 먼저 제거한다.
 echo ">> [1/7] Deleting Ingress (ALB) to release Network Interfaces..."
 kubectl delete ingress --all -A --ignore-not-found
 
-# AWS 로드밸런서가 물리적으로 철거될 시간을 충분히 줘.
+# 로드밸런서와 ENI가 실제로 회수될 때까지 대기한다.
 echo "⏳ 로드밸런서(ALB) 철거 대기 중 (120s)..."
 sleep 120
 
@@ -31,13 +33,13 @@ sleep 120
 # [Step 2] 네임스페이스 강제 패치 및 삭제
 # --------------------------------------------------------
 echo ">> [2/7] Force Patching and Deleting Namespaces..."
-# ArgoCD가 있다면 먼저 삭제 시도
+# ArgoCD가 설치되어 있다면 먼저 제거한다.
 kubectl delete -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --ignore-not-found
 
 for ns in dev stg prod monitoring kubecost argocd karpenter; do 
   echo "🛠️ Patching finalizers for namespace: $ns"
   # 좀비 네임스페이스 방지를 위한 강제 패치
-  kubectl patch namespace $ns -p '{"metadata":{"finalizers":null}}' --type=merge --ignore-not-found
+  kubectl patch namespace $ns -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
   kubectl delete namespace $ns --ignore-not-found
 done
 
@@ -71,7 +73,7 @@ eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --n
 
 # [Step 5 보강] EBS CSI Driver 애드온 및 관련 IRSA 삭제
 echo ">> [5/7 보강] Deleting EBS CSI Add-on and IRSA..."
-aws eks delete-addon --cluster-name $CLUSTER_NAME --addon-name aws-ebs-csi-driver --region $AWS_REGION --ignore-not-found
+aws eks delete-addon --cluster-name $CLUSTER_NAME --addon-name aws-ebs-csi-driver --region $AWS_REGION 2>/dev/null || true
 eksctl delete iamserviceaccount --cluster $CLUSTER_NAME --region $AWS_REGION --name ebs-csi-controller-sa --namespace kube-system --wait || true
 
 # --------------------------------------------------------
@@ -92,7 +94,7 @@ eksctl delete cluster --name $CLUSTER_NAME --region $AWS_REGION --wait
 set +x
 echo "================================================="
 echo "🎉 모든 인프라가 깔끔하게 정리되었습니다!"
-echo "💡 완전히 삭제되었는지 destroy_all.md를 확인해주세요."
+echo "💡 남은 리소스가 없는지 99_destroy_all.md의 확인 절차를 따라주세요."
 echo "================================================="
 EOF
 
