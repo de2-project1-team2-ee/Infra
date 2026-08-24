@@ -32,12 +32,17 @@ echo "🔑 Target Node Role: $NODE_ROLE_NAME"
 echo "🛡️ Target Node Security Group: $NODE_SG_ID"
 
 # 3. Karpenter 정책 주입
-aws iam put-role-policy --role-name ${NODE_ROLE_NAME} \
-  --policy-name KarpenterControllerPolicy \
-  --policy-document '{
+# 이 정책은 노드 IAM 역할에 붙는다. 즉 해당 노드에 스케줄되는 모든 파드가
+# 인스턴스 메타데이터를 통해 같은 권한을 사용할 수 있다.
+# 그래서 iam:PassRole 을 Karpenter 가 실제로 넘겨야 하는 노드 역할 하나로 제한한다.
+# 전체 허용 시 임의의 고권한 역할을 EC2 에 부착할 수 있어 권한 상승 경로가 된다.
+# 근본 해결은 IRSA 로 컨트롤러 전용 역할을 분리하는 것이며, README 개선 과제로 남겨 둔다.
+cat << POLICY_EOF > /tmp/karpenter-controller-policy.json
+{
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "NodeProvisioning",
             "Effect": "Allow",
             "Action": [
                 "ec2:CreateFleet", "ec2:CreateLaunchTemplate", "ec2:CreateTags",
@@ -45,14 +50,34 @@ aws iam put-role-policy --role-name ${NODE_ROLE_NAME} \
                 "ec2:DescribeInstanceTypes", "ec2:DescribeInstances",
                 "ec2:DescribeLaunchTemplates", "ec2:DescribeSecurityGroups",
                 "ec2:DescribeSubnets", "ec2:RunInstances", "ec2:TerminateInstances",
-                "iam:PassRole", "iam:GetInstanceProfile", "iam:CreateInstanceProfile",
-                "iam:TagInstanceProfile", "iam:AddRoleToInstanceProfile",
                 "ssm:GetParameter", "pricing:GetProducts", "ec2:DescribeSpotPriceHistory"
             ],
             "Resource": "*"
+        },
+        {
+            "Sid": "ManageInstanceProfile",
+            "Effect": "Allow",
+            "Action": [
+                "iam:GetInstanceProfile", "iam:CreateInstanceProfile",
+                "iam:TagInstanceProfile", "iam:AddRoleToInstanceProfile"
+            ],
+            "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:instance-profile/*"
+        },
+        {
+            "Sid": "PassNodeRoleOnly",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
         }
     ]
-}'
+}
+POLICY_EOF
+
+aws iam put-role-policy --role-name ${NODE_ROLE_NAME} \
+  --policy-name KarpenterControllerPolicy \
+  --policy-document file:///tmp/karpenter-controller-policy.json
+
+rm -f /tmp/karpenter-controller-policy.json
 
 # 4. 신규 노드용 IAM 역할 및 프로파일 생성
 aws iam create-role --role-name "KarpenterNodeRole-${CLUSTER_NAME}" \
@@ -80,8 +105,11 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --namespace karpenter --create-namespace \
   --set settings.clusterName=${CLUSTER_NAME} \
   --set settings.clusterEndpoint=${CLUSTER_ENDPOINT} \
-  --set settings.interruptionQueueName=${CLUSTER_NAME} \
   --wait
+
+# 참고: Spot 중단 알림을 처리하려면 settings.interruptionQueue 로 SQS 큐를 지정한다.
+# 큐를 생성하지 않은 상태에서 값을 넘기면 컨트롤러가 기동 시 큐 조회에 실패한다.
+# (v1.x 의 키 이름은 interruptionQueue 이며, interruptionQueueName 은 v0.32 이하의 이름이다.)
 
 # 7. EKS 노드 인증 등록
 eksctl create iamidentitymapping \

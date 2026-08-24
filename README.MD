@@ -225,16 +225,30 @@ Kubecost가 PV를 사용하므로 EBS CSI Driver를 먼저 설치합니다.
 이 저장소는 부트캠프 실습 환경을 전제로 구성되어 있습니다.
 운영 환경에 그대로 적용할 수 없는 지점을 아래에 명시합니다.
 
+### 조치 완료
+
+| 항목 | 문제 | 조치 |
+| --- | --- | --- |
+| RDS 마스터 비밀번호 | 스크립트에 평문 하드코딩 | 실행 시점의 `DB_PASSWORD` 환경 변수로 주입. 미설정 시 `:?` 확장으로 즉시 실패하므로 약한 기본값으로 DB가 생성되지 않음 |
+| GitHub PAT | 원격 URL에 포함, `~/.git-credentials` 에 평문 저장 | `GIT_ASKPASS` 헬퍼로 환경 변수 전달. `ps` 출력·`.git/config`·디스크 어디에도 남지 않음 |
+| Karpenter `iam:PassRole` | `Resource: "*"` 로 전체 허용 | Karpenter가 실제로 넘기는 `KarpenterNodeRole-<클러스터>` 하나로 제한. 인스턴스 프로파일 조작도 계정 내 ARN으로 한정 |
+| Karpenter 중단 큐 설정 | 존재하지 않는 SQS 큐를 `interruptionQueueName` 으로 지정하여 컨트롤러 기동 실패 | 해당 설정 제거. v1.x의 올바른 키 이름(`interruptionQueue`)과 큐 선행 생성 조건을 주석으로 명시 |
+| RDS 보안 그룹 조회 | 배스천을 `*bastion*` 와일드카드로 탐색하여 다른 팀의 보안 그룹이 선택될 수 있음 | VPC와 정확한 Name 태그로 한정 |
+| 정리 스크립트 | `kubectl patch` / `aws eks delete-addon` 에 존재하지 않는 `--ignore-not-found` 옵션 사용으로 해당 단계 실패 | 종료 코드를 무시하도록 수정 |
+
+### 남은 과제
+
 | 항목 | 현재 상태 | 개선 방향 |
 | --- | --- | --- |
 | 배스천 IAM 역할 | `AdministratorAccess` | eksctl이 요구하는 EKS / CloudFormation / EC2 / IAM 범위로 축소. IAM 조작은 `eksctl-*`, `KarpenterNodeRole-*` 등 이름 패턴으로 제한 |
 | 배스천 SSH | `SgIngressSshCidr` 기본값이 `0.0.0.0/0` | 스택 생성 시 반드시 본인 IP `/32` 로 지정. 기본값 제거 필요 |
 | 애플리케이션 ALB | 80포트를 `0.0.0.0/0` 에 개방 | 특정 IP 대역으로 제한하거나 HTTPS(ACM) 적용 |
 | Grafana / Kubecost / ArgoCD | `internet-facing` ALB로 노출 | `alb.ingress.kubernetes.io/inbound-cidrs` 로 접근 대역 제한, 기본 관리자 비밀번호 교체 |
-| RDS 마스터 비밀번호 | 환경 변수로 주입 (평문 하드코딩 제거 완료) | AWS Secrets Manager 관리형 비밀번호(`--manage-master-user-password`)로 전환 |
+| Karpenter 컨트롤러 권한 | 노드 IAM 역할에 인라인 정책으로 부여. 해당 노드의 모든 파드가 메타데이터를 통해 같은 권한을 사용할 수 있음 | IRSA(서비스 어카운트 단위 역할)로 컨트롤러 권한을 분리. `iam:PassRole` 범위 제한은 완화 조치이며 근본 해결은 아님 |
 | DB 접속 정보 | manifests 저장소의 Secret 매니페스트로 전달 | Secret은 Git에 두지 않고 External Secrets Operator 또는 `kubectl create secret` 으로 클러스터에 직접 주입 |
-| Karpenter 컨트롤러 권한 | 노드 IAM 역할에 인라인 정책으로 부여 | IRSA(서비스 어카운트 단위 역할)로 분리. `iam:PassRole` 은 노드 역할 ARN 하나로 제한 |
+| RDS 마스터 비밀번호 관리 | 운영자가 환경 변수로 직접 관리 | AWS Secrets Manager 관리형 비밀번호(`--manage-master-user-password`)로 전환하여 자동 교체 |
 | RDS 저장소 암호화 | 미적용 | `--storage-encrypted` 및 백업 보관 기간 설정 |
+| 노드 IMDS | IMDSv1 허용, 홉 제한 미설정 | `httpTokens: required`, `httpPutResponseHopLimit: 1` 로 컨테이너에서의 자격 증명 탈취 경로 차단 |
 
 ## 기타 고려 사항
 
